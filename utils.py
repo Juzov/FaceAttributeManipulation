@@ -3,11 +3,11 @@ from PIL import Image
 import random
 import numpy as np
 
-def process_images(filenames, labels):
+def process_images(filenames, attribute):
 	dataset = np.zeros((len(filenames), 128, 128, 3), dtype='int64')
 	for i, filename in enumerate(filenames):
 		path = ''
-		if labels[i] == 0:
+		if attribute == 0:
 			path = os.path.join('img_align_celeba', 'negatives')
 		else:
 			path = os.path.join('img_align_celeba', 'positives')
@@ -18,6 +18,27 @@ def process_images(filenames, labels):
 		im.close()
 		dataset[i] = image
 	return dataset
+
+def get_attribute_training_test(size, training_ratio, seed, filenames, attribute):
+	labels = [attribute] * size
+        training_size = int(np.floor(0.7*size))
+        filenames_train = filenames[:training_size]
+        filenames_test = filenames[training_size:]
+        labels_train = labels[:training_size]
+        labels_test = labels[training_size:]
+
+	dataset_train = process_images(filenames_train, attribute)
+	dataset_test = process_images(filenames_test, attribute)
+
+        X = {
+            'train_data'    :   dataset_train,
+            'train_labels'  :   labels_train,
+            'test_data'     :   dataset_test,
+            'test_labels'   :   labels_test,
+        }
+
+        return X
+
 
 def get_data(size = 1000, training_ratio=0.7, seed=9):
 	random.seed(seed)
@@ -31,23 +52,7 @@ def get_data(size = 1000, training_ratio=0.7, seed=9):
 	negative_filenames = random.sample(negative_filenames, size)
 	positive_filenames = random.sample(positive_filenames, size)
 
-	negative_labels = [0] * size
-	positive_labels = [1] * size
-	filenames = np.array(negative_filenames + positive_filenames)
-	labels = np.array(negative_labels + positive_labels)
+        X_neg = get_attribute_training_test(size, training_ratio, seed, negative_filenames, 0)
+        X_pos = get_attribute_training_test(size, training_ratio, seed, positive_filenames, 1)
 
-	indexes = np.array(range(size*2), dtype='int64')
-	np.random.shuffle(indexes)
-	training_size = int(np.floor(0.7*size*2))
-	indexes_train = indexes[:training_size]
-	indexes_test = indexes[training_size:]
-	filenames_train = filenames[indexes_train]
-	filenames_test = filenames[indexes_test]
-	labels_train = labels[indexes_train]
-	labels_test = labels[indexes_test]
-
-
-	dataset_train = process_images(filenames_train, labels_train)
-	dataset_test = process_images(filenames_test, labels_test)
-
-	return dataset_train, dataset_test, labels_train, labels_test
+	return X_neg, X_pos
