@@ -36,14 +36,14 @@ class Generator:
 			function = layers.Conv2DTranspose,
 			number_of_maps = 128,
 			kernel_size = (3,3),
-			stride = 1
+			stride = 2
 		)
 
 		self.create_layer(
 			function = layers.Conv2DTranspose,
 			number_of_maps = 64,
 			kernel_size = (3,3),
-			stride = 1
+			stride = 2
 		)
 
 		# Output size (128, 128, 3)
@@ -56,7 +56,7 @@ class Generator:
 			)
 		)
 
-	def __call__(self):
+	def __call__(self, x):
 		#do prediction
 		output = self.model.predict_on_batch(x)
 		return output
