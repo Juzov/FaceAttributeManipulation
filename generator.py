@@ -58,7 +58,8 @@ class Generator:
 
 	def __call__(self):
 		#do prediction
-		pass
+		output = self.model.predict_on_batch(x)
+		return output
 
 	def create_layer(self, function, number_of_maps, kernel_size, stride):
 		self.model.add(
@@ -74,3 +75,5 @@ class Generator:
 		self.model.add(layers.LeakyReLU(alpha=0.3))
 
 		self.model.add(layers.BatchNormalization())
+
+

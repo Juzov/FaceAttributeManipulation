@@ -1,64 +1,33 @@
 import numpy as np
 import tensorflow as tf
-import os
-from PIL import Image
-import random
 from tensorflow.keras import layers
 from generator import Generator
 from discriminator import Discriminator
+from utils import get_data
 
-def process_images(filenames, labels):
-	dataset = np.zeros((len(filenames), 128, 128, 3), dtype='int64')
-	for i, filename in enumerate(filenames):
-		path = ''
-		if labels[i] == 0:
-			path = os.path.join('img_align_celeba', 'negatives')
-		else:
-			path = os.path.join('img_align_celeba', 'positives')
-
-		im = Image.open(os.path.join(path,filename))
-		im = im.resize([128, 128])
-		image = np.array(im.convert('RGB'))
-		im.close()
-		dataset[i] = image
-	return dataset
-
-def get_data(size = 1000, training_ratio=0.7):
-	positive_path = os.path.join('img_align_celeba', 'positives')
-	negative_path = os.path.join('img_align_celeba', 'negatives')
-
-	negative_filenames = os.listdir(negative_path)
-	positive_filenames = os.listdir(positive_path)
-
-	negative_filenames = random.sample(negative_filenames, size)
-	positive_filenames = random.sample(positive_filenames, size)
-
-	negative_labels = [0] * size
-	positive_labels = [1] * size
-	filenames = np.array(negative_filenames + positive_filenames)
-	labels = np.array(negative_labels + positive_labels)
-
-	indexes = np.array(range(size*2), dtype='int64')
-	np.random.shuffle(indexes)
-	training_size = int(np.floor(0.7*size*2))
-	indexes_train = indexes[:training_size]
-	indexes_test = indexes[training_size:]
-	filenames_train = filenames[indexes_train]
-	filenames_test = filenames[indexes_test]
-	labels_train = labels[indexes_train]
-	labels_test = labels[indexes_test]
-
-
-	dataset_train = process_images(filenames_train, labels_train)
-	dataset_test = process_images(filenames_test, labels_test)
-
-	return dataset_train, dataset_test, labels_train, labels_test
 
 seed = 9
 batch_size = 100
-random.seed(seed)
-#g_0 = Generator(seed)
-#d = Discriminator(seed)
-dataset_train, dataset_test, labels_train, labels_test = get_data(1000, 0.7)
-print(labels_test)
-print(len(labels_test))
+
+g_0 = Generator(seed)
+g_1 = Generator(seed)
+d = Discriminator(seed)
+
+dataset_train, dataset_test, labels_train, labels_test = get_data(1000, 0.7, seed)
+
+epochs = 1
+for epoch in range(epochs):
+	for i in range(int(np.floor(len(dataset_train)/batch_size))):
+		batch = dataset_train[i*batch_size:(i*batch_size)+batch_size]
+		batch_labels = labels_train[i*batch_size:(i*batch_size)+batch_size]
+
+		r_0 = g_0(batch)
+		r_1 = g_1(batch)
+		x_tilde_0 = np.add(r_0, batch)
+		x_tilde_1 = np.add(r_1, batch)
+
+		discrimitator_batch = np.concatenate((batch, x_tilde_0, x_tilde_1), axis=0)
+		discrimitator_labels = np.empty(len(x_tilde_0) + len(x_tilde_1))
+		discrimitator_labels = np.concatenate((batch_labels, discrimitator_labels), axis=0)
+
+		discrimitator_loss = d.model.train_on_batch(discrimitator_batch, discrimitator_labels)
