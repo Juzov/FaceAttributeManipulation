@@ -1,79 +1,77 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers
 
 class Generator:
-	def __init__(self, seed):
+	def __init__(self, seed, data):
 		'''
 		This the architechture of the generator
 		'''
 		self.seed = seed
-		self.model = tf.keras.Sequential()
 
 		# Input size (128, 128, 3)
-		self.create_layer(
-			function = layers.Conv2D,
-			number_of_maps = 64,
-			kernel_size = (5,5),
+		conv1 = self.create_layer(
+			inputs = data,
+			function = tf.layers.conv2d,
+			filters = 64,
+			kernel_size = [5,5],
 			stride = 1
 		)
 
-		self.create_layer(
-			function = layers.Conv2D,
-			number_of_maps = 128,
-			kernel_size = (4,4),
+		conv2 = self.create_layer(
+			inputs = conv1,
+			function = tf.layers.conv2d,
+			filters = 128,
+			kernel_size = [4,4],
 			stride = 2
 		)
 
-		self.create_layer(
-			function = layers.Conv2D,
-			number_of_maps = 256,
-			kernel_size = (4,4),
+		conv3 = self.create_layer(
+			inputs = conv2,
+			function = tf.layers.conv2d,
+			filters = 256,
+			kernel_size = [4,4],
 			stride = 2
 		)
 
-		self.create_layer(
-			function = layers.Conv2DTranspose,
-			number_of_maps = 128,
-			kernel_size = (3,3),
+		deconv4 = self.create_layer(
+			inputs = conv3,
+			function = tf.layers.conv2d_transpose,
+			filters = 128,
+			kernel_size = [3,3],
 			stride = 2
 		)
 
-		self.create_layer(
-			function = layers.Conv2DTranspose,
-			number_of_maps = 64,
-			kernel_size = (3,3),
+		deconv5 = self.create_layer(
+			inputs = deconv4,
+			function = tf.layers.conv2d_transpose,
+			filters = 64,
+			kernel_size = [3,3],
 			stride = 2
 		)
 
 		# Output size (128, 128, 3)
-		self.model.add(
-			layers.Conv2D(
-				3,
-				kernel_size=(4,4),
-				strides = 1,
-				padding = 'same'
-			)
+		self.output = tf.layers.conv2d(
+			inputs = deconv5,
+			filters = 3,
+			kernel_size=[4,4],
+			strides = 1,
+			padding = 'same',
+			kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed)
 		)
 
-	def __call__(self, x):
-		#do prediction
-		output = self.model.predict_on_batch(x)
-		return output
-
-	def create_layer(self, function, number_of_maps, kernel_size, stride):
-		self.model.add(
-			function(
-				number_of_maps,
-				kernel_size=kernel_size,
-				strides = stride,
-				padding = 'same',
-				kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed)
-			)
+	def create_layer(self, inputs, function, filters, kernel_size, stride):
+		first_layer = function(
+			inputs = inputs,
+			filters = filters,
+			kernel_size=kernel_size,
+			strides = stride,
+			padding = 'same',
+			kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed),
+			activation = tf.nn.leaky_relu
 		)
 
-		self.model.add(layers.LeakyReLU(alpha=0.3))
+		second_layer = tf.layers.batch_normalization(inputs = first_layer)
 
-		self.model.add(layers.BatchNormalization())
+		return second_layer
 
 

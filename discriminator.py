@@ -1,76 +1,74 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers
 
 class Discriminator:
-	def __init__(self, seed):
+	def __init__(self, seed, data):
 		'''
 		This the architechture of the generator
 		'''
 		self.seed = seed
-		self.model = tf.keras.Sequential()
 
 		# Input size (128, 128, 3)
-		self.create_layer(
-			number_of_maps = 64,
+		conv1 = self.create_layer(
+			inputs = data,
+			function = tf.layers.conv2d,
+			filters = 64,
 		)
 
-		self.create_layer(
-			number_of_maps = 128,
+		conv2 = self.create_layer(
+			inputs = conv1,
+			function = tf.layers.conv2d,
+			filters = 128
 		)
 
-		self.create_layer(
-			number_of_maps = 256,
-			name = 'phi'
+		self.phi = self.create_layer(
+			inputs = conv2,
+			function = tf.layers.conv2d,
+			filters = 256
 		)
 
-		self.create_layer(
-			number_of_maps = 512,
+		conv4 = self.create_layer(
+			inputs = self.phi,
+			function = tf.layers.conv2d,
+			filters = 512
 		)
 
-		self.create_layer(
-			number_of_maps = 1024,
+		conv5 = self.create_layer(
+			inputs = conv4,
+			function = tf.layers.conv2d,
+			filters = 1024
 		)
 
-		# Output size (4, 4, 1)
-		self.model.add(
-			layers.Conv2D(
-				1,
-				kernel_size=(4,4),
-				strides = 1,
-				padding = 'same'
-			)
+		conv6 = tf.layers.conv2d(
+			inputs = conv5,
+			filters = 1,
+			kernel_size=[4,4],
+			strides = 1,
+			padding = 'same',
+			kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed)
 		)
 
-		self.model.add(layers.Flatten())
+		flatten7 = tf.layers.flatten(inputs = conv6)
 
-		self.model.add(
-			layers.Dense(
-				3,
-				activation = 'softmax'
-			)
+		self.output = tf.layers.dense(
+			inputs = flatten7,
+			units = 3,
+			activation = tf.nn.softmax,
+			kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed)
 		)
 
-		self.model.compile(loss='categorical_crossentropy', optimizer=tf.train.AdamOptimizer(2e-4))
-
-	def __call__(self, x):
-		#do prediction
-		output = self.model.predict(x)
-		phi = self.model.get_layer('phi').output
-		return output, phi
-
-	def create_layer(self, number_of_maps, kernel_size=(4,4), stride=2, name = None):
-		self.model.add(
-			layers.Conv2D(
-				number_of_maps,
-				kernel_size = kernel_size,
-				strides = stride,
-				padding = 'same',
-				kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed),
-				name = name
-			)
+	def create_layer(self, inputs, function, filters, kernel_size = [4,4], stride = 2):
+		first_layer = function(
+			inputs = inputs,
+			filters = filters,
+			kernel_size=kernel_size,
+			strides = stride,
+			padding = 'same',
+			kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed),
+			activation = tf.nn.leaky_relu
 		)
 
-		self.model.add(layers.LeakyReLU(alpha=0.3))
+		second_layer = tf.layers.batch_normalization(inputs = first_layer)
 
-		self.model.add(layers.BatchNormalization())
+		return second_layer
+
