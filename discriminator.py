@@ -62,7 +62,7 @@ class Discriminator:
 				units = 3,
 				activation = tf.nn.softmax,
 				kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed),
-				name = 'dense_8'
+				name = 'd_dense_8'
 			)
 
 			return self.phi, self.output
@@ -76,7 +76,7 @@ class Discriminator:
 			padding = 'same',
 			kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed),
 			activation = tf.nn.leaky_relu,
-			name = 'discriminator_' + name
+			name = 'd_' + name
 		)
 
 		second_layer = tf.layers.batch_normalization(inputs = first_layer)

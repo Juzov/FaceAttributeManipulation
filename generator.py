@@ -19,7 +19,7 @@ class Generator:
 				filters = 64,
 				kernel_size = [5,5],
 				stride = 1,
-				name = gen_name + 'conv_1'
+				name = gen_name + '_conv_1'
 			)
 
 			conv2 = self.create_layer(
@@ -28,7 +28,7 @@ class Generator:
 				filters = 128,
 				kernel_size = [4,4],
 				stride = 2,
-				name = gen_name + 'conv_2'
+				name = gen_name + '_conv_2'
 			)
 
 			conv3 = self.create_layer(
@@ -37,7 +37,7 @@ class Generator:
 				filters = 256,
 				kernel_size = [4,4],
 				stride = 2,
-				name = gen_name + 'conv_3'
+				name = gen_name + '_conv_3'
 			)
 
 			deconv4 = self.create_layer(
@@ -46,7 +46,7 @@ class Generator:
 				filters = 128,
 				kernel_size = [3,3],
 				stride = 2,
-				name = gen_name + 'deconv_4'
+				name = gen_name + '_deconv_4'
 			)
 
 			deconv5 = self.create_layer(
@@ -55,7 +55,7 @@ class Generator:
 				filters = 64,
 				kernel_size = [3,3],
 				stride = 2,
-				name = gen_name + 'deconv_5'
+				name = gen_name + '_deconv_5'
 			)
 
 			# Output size (128, 128, 3)
@@ -66,7 +66,7 @@ class Generator:
 				strides = 1,
 				padding = 'same',
 				kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed),
-				name = gen_name + 'dence_6'
+				name = gen_name + '_conv_6'
 			)
 
 			return self.output
