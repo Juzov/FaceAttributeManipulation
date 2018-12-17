@@ -24,8 +24,11 @@ def get_attribute_training_test(size, training_ratio, seed, filenames, attribute
 	training_size = int(np.floor(0.7*size))
 	filenames_train = filenames[:training_size]
 	filenames_test = filenames[training_size:]
-	labels_train = labels[:training_size]
-	labels_test = labels[training_size:]
+	labels_train = np.array(labels[:training_size])
+	labels_train = labels_train.reshape((-1, 1))
+	labels_test = np.array(labels[training_size:])
+	labels_test = labels_test.reshape((-1, 1))
+
 
 	dataset_train = process_images(filenames_train, attribute)
 	dataset_test = process_images(filenames_test, attribute)
