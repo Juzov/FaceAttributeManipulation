@@ -15,10 +15,10 @@ class FaceGAN():
 
 	def build_model(self, seed, batch_size, data_neg, data_pos):
 		self.X_neg = tf.placeholder(tf.float32, [batch_size, 128, 128, 3])
-		self.Y_neg = tf.placeholder(tf.float32, [batch_size, 1])
+		self.Y_neg = tf.placeholder(tf.int32, [batch_size, 1])
 
 		self.X_pos = tf.placeholder(tf.float32, [batch_size, 128, 128, 3])
-		self.Y_pos = tf.placeholder(tf.float32, [batch_size, 1])
+		self.Y_pos = tf.placeholder(tf.int32, [batch_size, 1])
 
 		g_0 = Generator()
 		g_1 = Generator()
@@ -33,13 +33,30 @@ class FaceGAN():
 		discriminator_fake_input = tf.concat([x_tilde_0,x_tilde_1], axis = 0)
 		discriminator_real_input = tf.concat([self.X_neg, self.X_pos], axis = 0)
 
-		phi_fake, y_hat_fake = d(seed, discriminator_fake_input, False)
-		phi_real, y_hat_real = d(seed, discriminator_real_input, True)
+		phi_fake, y_hat_fake_logits, y_hat_fake = d(seed, discriminator_fake_input, False)
+		phi_real, y_hat_real_logits, y_hat_real = d(seed, discriminator_real_input, True)
 
+		fake_labels = tf.fill([discriminator_fake_input.shape[0].value, 1], 3)
+		real_labels = tf.concat([self.Y_neg, self.Y_pos], axis = 0)
+
+		cls_labels = tf.concat([real_labels, fake_labels], axis = 0)
+		self.cls_labels = tf.one_hot(cls_labels, depth = 3)
+
+		self.cls_data = tf.concat([y_hat_real_logits, y_hat_fake_logits], axis = 0)
 		# Cls loss
-		loss_cls_fake = -tf.log(tf.reduce_sum(y_hat_fake))
-		loss_cls_real = -tf.log(tf.reduce_sum(y_hat_real))
-		self.loss_cls = tf.add(loss_cls_fake, loss_cls_real)
+		# fake_labels = tf.fill([discriminator_fake_input.shape[0].value], 3)
+		# fake_labels = tf.one_hot(fake_labels, depth = 3)
+		# loss_cls_fake = tf.losses.softmax_cross_entropy(
+		# 	fake_labels,
+		# 	y_hat_fake_logits
+		# )
+		# real_labels = tf.concat([self.Y_neg, self.Y_pos], axis = 0)
+		# real_labels = tf.one_hot(tf.to_int32(real_labels), depth = 3)
+		# loss_cls_real = tf.losses.softmax_cross_entropy(
+		# 	real_labels,
+		# 	y_hat_real_logits
+		# )
+		# self.loss_cls = loss_cls_fake + loss_cls_real
 
 		# Perception loss
 		self.loss_per = tf.losses.absolute_difference(
@@ -59,9 +76,9 @@ class FaceGAN():
 		x_tilde_1_dual = tf.add(r_1_reverse, x_tilde_0)
 
 			#input for g0 loss
-		_, y_hat_dual_0 = d(seed, x_tilde_1_dual, True)
+		_, _, y_hat_dual_0 = d(seed, x_tilde_1_dual, True)
 			#input for g1 loss
-		_, y_hat_dual_1 = d(seed, x_tilde_0_dual, True)
+		_, _, y_hat_dual_1 = d(seed, x_tilde_0_dual, True)
 
 			#g_0
 		self.loss_dual_0 = - tf.log(tf.reduce_sum(tf.subtract(1.0, y_hat_dual_0)))
@@ -69,8 +86,8 @@ class FaceGAN():
 		self.loss_dual_1 = - tf.log(tf.reduce_sum(y_hat_dual_1))
 
 		# GAN loss
-		_, gan_0 = d(seed, x_tilde_0, True)
-		_, gan_1 = d(seed, x_tilde_1, True)
+		_, _, gan_0 = d(seed, x_tilde_0, True)
+		_, _, gan_1 = d(seed, x_tilde_1, True)
 			#g1
 		self.loss_gan_1 = - tf.log(tf.reduce_sum(tf.subtract(1.0, gan_1)))
 			#g0
@@ -86,8 +103,8 @@ class FaceGAN():
 		d_vars = [var for var in t_vars if 'd_' in var.name]
 
 		with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
-			discrimitator_optimizer = tf.train.AdamOptimizer(learning_rate = 2e-4)
-			self.train_step_discriminator = discrimitator_optimizer.minimize(self.loss_cls, var_list = d_vars)
+			# discrimitator_optimizer = tf.train.AdamOptimizer(learning_rate = 2e-4)
+			# self.train_step_discriminator = discrimitator_optimizer.minimize(self.loss_cls, var_list = d_vars)
 
 			g_0_optimizer = tf.train.AdamOptimizer(learning_rate = 2e-4)
 			self.train_step_g_0 = g_0_optimizer.minimize(self.loss_g_0, var_list = g_0_vars)
@@ -121,26 +138,33 @@ class FaceGAN():
 					batch = np.concatenate((batch_pos, batch_neg), axis = 0)
 					batch_labels = np.concatenate((labels_pos, labels_neg), axis = 0)
 
-					# train discriminator
-					loss, _ = sess.run([self.loss_cls, self.train_step_discriminator], feed_dict = {
+					test, test2 = sess.run( [self.cls_labels ,self.cls_data], feed_dict = {
 						self.X_neg : batch_neg,
 						self.X_pos : batch_pos
 					})
-					print(f'Loss for discriminator is: {loss}')
 
-					# train generator_0
-					loss, _ = sess.run([self.loss_g_0, self.train_step_g_0], feed_dict = {
-						self.X_neg : batch_neg,
-						self.X_pos : batch_pos
-					})
-					print(f'Loss for g_0 is: {loss}')
+					print(test, test2)
 
-					# train generator_1
-					loss, _ = sess.run([self.loss_g_1, self.train_step_g_1], feed_dict = {
-						self.X_neg : batch_neg,
-						self.X_pos : batch_pos
-					})
-					print(f'Loss for g_1 is: {loss}')
+					# # train discriminator
+					# loss, _ = sess.run([self.loss_cls, self.train_step_discriminator], feed_dict = {
+					# 	self.X_neg : batch_neg,
+					# 	self.X_pos : batch_pos
+					# })
+					# print(f'Loss for discriminator is: {loss}')
+
+					# # train generator_0
+					# loss, _ = sess.run([self.loss_g_0, self.train_step_g_0], feed_dict = {
+					# 	self.X_neg : batch_neg,
+					# 	self.X_pos : batch_pos
+					# })
+					# print(f'Loss for g_0 is: {loss}')
+
+					# # train generator_1
+					# loss, _ = sess.run([self.loss_g_1, self.train_step_g_1], feed_dict = {
+					# 	self.X_neg : batch_neg,
+					# 	self.X_pos : batch_pos
+					# })
+					# print(f'Loss for g_1 is: {loss}')
 
 fg = FaceGAN()
 fg()

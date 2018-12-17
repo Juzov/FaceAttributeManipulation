@@ -57,15 +57,17 @@ class Discriminator:
 
 			flatten7 = tf.layers.flatten(inputs = conv6)
 
-			self.output = tf.layers.dense(
+			self.logits = tf.layers.dense(
 				inputs = flatten7,
 				units = 3,
-				activation = tf.nn.softmax,
+				activation = None,
 				kernel_initializer = tf.keras.initializers.he_normal(seed=self.seed),
 				name = 'd_dense_8'
 			)
 
-			return self.phi, self.output
+			self.output = tf.nn.softmax(self.logits)
+
+			return self.phi, self.logits, self.output
 
 	def create_layer(self, inputs, function, filters, name, kernel_size = [4,4], stride = 2):
 		first_layer = function(
