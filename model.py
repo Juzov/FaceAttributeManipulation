@@ -7,98 +7,79 @@ from discriminator import Discriminator
 from utils import get_data
 from tensorflow.keras.callbacks import TensorBoard as tb
 
-def reset_graph(seed=42):
-    tf.reset_default_graph()
-    tf.set_random_seed(seed)
-    np.random.seed(seed)
+class FaceGAN():
+	def reset_graph(self, seed=42):
+		tf.reset_default_graph()
+		tf.set_random_seed(seed)
+		np.random.seed(seed)
 
-seed = 9
-batch_size = 100
-number_of_images = 1000
+	def build_model(self, seed, batch_size, data_neg, data_pos):
+		self.X_neg = tf.placeholder(tf.float32, [batch_size, 128, 128, 3])
+		self.Y_neg = tf.placeholder(tf.float32, [batch_size, 1])
 
-data_neg, data_pos = get_data(number_of_images, 0.7, seed)
+		self.X_pos = tf.placeholder(tf.float32, [batch_size, 128, 128, 3])
+		self.Y_pos = tf.placeholder(tf.float32, [batch_size, 1])
 
-reset_graph(seed)
+		g_0 = Generator()
+		g_1 = Generator()
+		d = Discriminator()
 
-g_1_input = tf.placeholder(tf.float32, shape = [None, 128, 128, 3])
-g_1_labels = tf.placeholder(tf.uint8, shape = [None, 1])
+		r_0 = g_0(seed, self.X_neg, "g_0", False)
+		r_1 = g_1(seed, self.X_pos, "g_1", False)
 
-g_0_input = tf.placeholder(tf.float32, shape = [None, 128, 128, 3])
-g_0_labels = tf.placeholder(tf.uint8, shape = [None, 1])
+		x_tilde_0 = tf.add(r_0, self.X_neg)
+		x_tilde_1 = tf.add(r_1, self.X_pos)
 
-d_input = tf.placeholder(tf.float32, shape = [None, 128, 128, 3])
-d_labels = tf.placeholder(tf.uint8, shape = [None, 1])
+		discriminator_fake_input = tf.concat([x_tilde_0,x_tilde_1], axis = 0)
+		discriminator_real_input = tf.concat([self.X_neg, self.X_pos], axis = 0)
 
-cls_loss = tf.placeholder(tf.float32)
+		phi_fake, y_hat_fake = d(seed, discriminator_fake_input, False)
+		phi_real, y_hat_real = d(seed, discriminator_real_input, True)
 
-g_0 = Generator(seed, g_0_input)
-g_1 = Generator(seed, g_1_input)
+		loss_cls_fake = tf.reduce_sum(-tf.log(y_hat_fake))
+		loss_cls_real = tf.reduce_sum(-tf.log(y_hat_real))
+		self.loss_cls = tf.add(loss_cls_fake, loss_cls_real)
 
-r_0 = g_0.output
-r_1 = g_1.output
+		t_vars = tf.trainable_variables()
+		g_0_vars = [var for var in t_vars if 'g_0_' in var.name]
+		g_1_vars = [var for var in t_vars if 'g_1_' in var.name]
+		d_vars = [var for var in t_vars if 'd_' in var.name]
 
-x_tilde_0 = tf.add(r_0, g_0_input)
-x_tilde_1 = tf.add(r_1, g_1_input)
+		with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
+			discrimitator_optimizer = tf.train.AdamOptimizer(learning_rate = 2e-4)
+			self.train_step_discriminator = discrimitator_optimizer.minimize(self.loss_cls, var_list = d_vars)
 
-d = Discriminator(seed, d_input)
 
-# Discriminator loss
-loss_cls = -tf.log(tf.reduce_sum(d.output))
+	def __call__(self):
+		seed = 9
+		batch_size = 1
+		number_of_images = 1000
 
-optimizer = tf.train.AdamOptimizer(learning_rate = 2e-4)
-train_step = optimizer.minimize(cls_loss)
+		data_neg, data_pos = get_data(number_of_images, 0.7, seed)
 
-init = tf.global_variables_initializer()
+		self.reset_graph(seed)
 
-with tf.Session() as sess:
-	n_epochs = 10
-	sess.run(init)
-	for epoch in range(n_epochs):
-		for i in range(int(np.floor(number_of_images/batch_size))):
-			batch_pos = data_pos['train_data'][i*batch_size:(i*batch_size)+batch_size]
-			batch_neg = data_neg['train_data'][i*batch_size:(i*batch_size)+batch_size]
-			labels_pos = data_pos['train_labels'][i*batch_size:(i*batch_size)+batch_size]
-			labels_neg = data_neg['train_labels'][i*batch_size:(i*batch_size)+batch_size]
-			batch = np.concatenate((batch_pos, batch_neg), axis = 0)
-			batch_labels = np.concatenate((labels_pos, labels_neg), axis = 0)
+		self.build_model(seed, batch_size, data_neg, data_pos)
 
-			tilde = sess.run(x_tilde_0, feed_dict = {
-				g_0_input : batch_neg
-			})
+		init = tf.global_variables_initializer()
 
-			first_d_loss = sess.run(loss_cls, feed_dict = {
-				d_input: tilde
-			})
+		with tf.Session() as sess:
+			n_epochs = 10
+			sess.run(init)
+			for epoch in range(n_epochs):
+				for i in range(int(np.floor(number_of_images/batch_size))):
+					batch_pos = data_pos['train_data'][i*batch_size:(i*batch_size)+batch_size]
+					batch_neg = data_neg['train_data'][i*batch_size:(i*batch_size)+batch_size]
+					labels_pos = data_pos['train_labels'][i*batch_size:(i*batch_size)+batch_size]
+					labels_neg = data_neg['train_labels'][i*batch_size:(i*batch_size)+batch_size]
+					batch = np.concatenate((batch_pos, batch_neg), axis = 0)
+					batch_labels = np.concatenate((labels_pos, labels_neg), axis = 0)
 
-			tilde = sess.run(x_tilde_1, feed_dict = {
-				g_1_input : batch_pos
-			})
+					loss, _ = sess.run([self.loss_cls, self.train_step_discriminator], feed_dict = {
+						self.X_neg : batch_neg,
+						self.X_pos : batch_pos
+					})
 
-			second_d_loss = sess.run(loss_cls, feed_dict = {
-				d_input: tilde
-			})
-
-			third_d_loss = sess.run(loss_cls, feed_dict = {
-				d_input: batch_pos
-			})
-
-			fourth_d_loss = sess.run(loss_cls, feed_dict = {
-				d_input: batch_neg
-			})
-
-			total_cls_loss = first_d_loss, second_d_loss, third_d_loss, fourth_d_loss
-
-			sess.run(train_step, feed_dict = {
-				cls_loss: total_cls_loss
-			})
-			print(first_d_loss)
-			"""sess.run(train_step, feed_dict = {
-				X_pos : batch_pos,
-				X_pos : batch_neg
-			})
-
-			print("Cost:", sess.run(loss_cls, feed_dict = {
-				X_pos : batch_pos,
-				X_pos : batch_neg
-			})"""
-
+					print(f'loss is: {loss}')
+fg = FaceGAN()
+fg()
