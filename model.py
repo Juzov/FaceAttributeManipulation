@@ -36,9 +36,33 @@ class FaceGAN():
 		phi_fake, y_hat_fake = d(seed, discriminator_fake_input, False)
 		phi_real, y_hat_real = d(seed, discriminator_real_input, True)
 
-		loss_cls_fake = tf.reduce_sum(-tf.log(y_hat_fake))
-		loss_cls_real = tf.reduce_sum(-tf.log(y_hat_real))
+		loss_cls_fake = -tf.log(tf.reduce_sum(y_hat_fake))
+		loss_cls_real = -tf.log(tf.reduce_sum(y_hat_real))
 		self.loss_cls = tf.add(loss_cls_fake, loss_cls_real)
+
+		self.loss_per = tf.losses.absolute_difference(
+			labels = phi_real,
+			predictions = phi_fake
+		)
+
+		self.loss_pix_0 = tf.reduce_sum(tf.abs(r_0))
+		self.loss_pix_1 = tf.reduce_sum(tf.abs(r_1))
+
+		#dual
+		r_0_reverse = g_0(seed, x_tilde_1, "g_0", True)
+		r_1_reverse = g_1(seed, x_tilde_0, "g_1", True)
+
+		x_tilde_0_dual = tf.add(r_0_reverse, x_tilde_1)
+		x_tilde_1_dual = tf.add(r_1_reverse, x_tilde_0)
+
+		#input for g0 loss
+		_, y_hat_dual_0 = d(seed, x_tilde_1_dual, True)
+		#input for g1 loss
+		_, y_hat_dual_1 = d(seed, x_tilde_0_dual, True)
+
+			#g_0
+
+
 
 		t_vars = tf.trainable_variables()
 		g_0_vars = [var for var in t_vars if 'g_0_' in var.name]
@@ -75,11 +99,19 @@ class FaceGAN():
 					batch = np.concatenate((batch_pos, batch_neg), axis = 0)
 					batch_labels = np.concatenate((labels_pos, labels_neg), axis = 0)
 
+					# train discriminator
 					loss, _ = sess.run([self.loss_cls, self.train_step_discriminator], feed_dict = {
 						self.X_neg : batch_neg,
 						self.X_pos : batch_pos
 					})
+					# train generator_0
+					loss_per, loss_pix_0 = sess.run([self.loss_per, self.loss_pix_0], feed_dict = {
+						self.X_neg : batch_neg,
+						self.X_pos : batch_pos
+					})
 
-					print(f'loss is: {loss}')
+					# train generator_1
+
+					print(f'loss is: {loss_per}, {loss_pix_0}')
 fg = FaceGAN()
 fg()
