@@ -1,5 +1,7 @@
 import numpy as np
 import tensorflow as tf
+from PIL import Image
+import sys
 from time import time
 from tensorflow.keras import layers
 from generator import Generator
@@ -28,6 +30,9 @@ class FaceGAN():
 		r_1 = g_1(seed, self.X_pos, "g_1", False)
 
 		x_tilde_0 = tf.add(r_0, self.X_neg)
+		self.test_image_1 = r_0[0]
+		self.test_image = x_tilde_0[0]
+		self.test_image_2 = self.X_neg[0]
 		x_tilde_1 = tf.add(r_1, self.X_pos)
 
 		discriminator_fake_input = tf.concat([x_tilde_0,x_tilde_1], axis = 0)
@@ -141,6 +146,7 @@ class FaceGAN():
 			n_epochs = 10
 			sess.run(init)
 			for epoch in range(n_epochs):
+				# TODO - this fails
 				for i in range(int(np.floor(number_of_images/batch_size))):
 					batch_pos = data_pos['train_data'][i*batch_size:(i*batch_size)+batch_size]
 					batch_neg = data_neg['train_data'][i*batch_size:(i*batch_size)+batch_size]
@@ -149,44 +155,53 @@ class FaceGAN():
 					batch = np.concatenate((batch_pos, batch_neg), axis = 0)
 					batch_labels = np.concatenate((labels_pos, labels_neg), axis = 0)
 
-					# test1, test2 = sess.run([self.cls_labels, self.cls_data], feed_dict = {
-					# 	self.X_neg : batch_neg,
-					# 	self.X_pos : batch_pos,
-					# 	self.Y_neg : labels_neg,
-					# 	self.Y_pos : labels_pos,
-					# })
-
-					# print(test1.shape, test2.shape)
-
 					# train discriminator
-					loss, _ = sess.run([self.loss_cls, self.train_step_discriminator], feed_dict = {
-						self.X_neg : batch_neg,
-						self.X_pos : batch_pos,
-						self.Y_neg : labels_neg,
-					 	self.Y_pos : labels_pos
-					})
+					loss, _ = sess.run(
+						[self.loss_cls, self.train_step_discriminator],
+						feed_dict = {
+							self.X_neg : batch_neg,
+							self.X_pos : batch_pos,
+							self.Y_neg : labels_neg,
+						 	self.Y_pos : labels_pos
+						}
+					)
 					print(f'Loss for discriminator is: {loss}')
 
 					# train generator_0
-					loss, _, loss_gan_0, loss_dual_0, loss_pix_0, loss_per = sess.run(
-						[self.loss_g_0, self.train_step_g_0, self.loss_gan, self.loss_dual, self.loss_pix_0, self.loss_per],
+					loss, _ = sess.run(
+						[self.loss_g_0, self.train_step_g_0],
 						feed_dict = {
-						self.X_neg : batch_neg,
-						self.X_pos : batch_pos,
-						self.Y_neg : labels_neg,
-					 	self.Y_pos : labels_pos
-					})
+							self.X_neg : batch_neg,
+							self.X_pos : batch_pos,
+							self.Y_neg : labels_neg,
+						 	self.Y_pos : labels_pos
+						}
+					)
 					print(f'Loss for g_0 is: {loss}')
-					print(f'massor med losses: {loss_gan_0},{loss_dual_0},{loss_pix_0},{loss_per}')
 
 					# train generator_1
-					loss, _ = sess.run([self.loss_g_1, self.train_step_g_1], feed_dict = {
-						self.X_neg : batch_neg,
-						self.X_pos : batch_pos,
-						self.Y_neg : labels_neg,
-					 	self.Y_pos : labels_pos
-					})
+					loss, _, image, image_1, image_2 = sess.run(
+						[self.loss_g_1, self.train_step_g_1, self.test_image,self.test_image_1,self.test_image_2],
+						feed_dict = {
+							self.X_neg : batch_neg,
+							self.X_pos : batch_pos,
+							self.Y_neg : labels_neg,
+							self.Y_pos : labels_pos
+						}
+					)
 					print(f'Loss for g_1 is: {loss}')
+
+					im = Image.fromarray(image.astype('uint8'))
+					im.save('test.png')
+					im.close()
+
+					im = Image.fromarray(image_1.astype('uint8'))
+					im.save('test_res.png')
+					im.close()
+
+					im = Image.fromarray(image_2.astype('uint8'))
+					im.save('test_org.png')
+					im.close()
 
 fg = FaceGAN()
 fg()

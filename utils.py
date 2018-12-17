@@ -15,7 +15,6 @@ def process_images(filenames, attribute):
 		im = Image.open(os.path.join(path,filename))
 		im = im.resize([128, 128])
 		image = np.array(im.convert('RGB'))
-		im.close()
 		dataset[i] = image
 	return dataset
 
