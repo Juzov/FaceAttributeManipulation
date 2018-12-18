@@ -1,0 +1,1 @@
+processing image # 30 in batch 0 in epoch 0

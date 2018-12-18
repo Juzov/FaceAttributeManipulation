@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from PIL import Image
+import os
 import sys
 from time import time
 from tensorflow.keras import layers
@@ -10,12 +11,38 @@ from utils import get_data
 from tensorflow.keras.callbacks import TensorBoard as tb
 
 class FaceGAN():
+	def __init__(self):
+		self.model_name = 'face-gan'
+		self.checkpoint_dir = 'checkpoints'
+
 	def reset_graph(self, seed=42):
 		tf.reset_default_graph()
 		tf.set_random_seed(seed)
 		np.random.seed(seed)
 
-	def build_model(self, seed, batch_size, data_neg, data_pos):
+	def save(self, step):
+
+		if not os.path.exists(self.checkpoint_dir):
+			os.makedirs(self.checkpoint_dir)
+
+		self.saver.save(self.sess,os.path.join(self.checkpoint_dir, self.model_name+'.model'), global_step=step)
+
+	def load(self):
+		import re
+		print(" [*] Reading checkpoints...")
+
+		ckpt = tf.train.get_checkpoint_state(self.checkpoint_dir)
+		if ckpt and ckpt.model_checkpoint_path:
+			ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
+			self.saver.restore(self.sess, os.path.join(self.checkpoint_dir, ckpt_name))
+			counter = int(next(re.finditer("(\d+)(?!.*\d)",ckpt_name)).group(0))
+			print(" [*] Success to read {}".format(ckpt_name))
+			return True, counter
+		else:
+			print(" [*] Failed to find a checkpoint")
+			return False, 0
+
+	def build_model(self, seed, batch_size):
 		self.X_neg = tf.placeholder(tf.float32, [batch_size, 128, 128, 3])
 		self.Y_neg = tf.placeholder(tf.int32, [batch_size])
 
@@ -132,55 +159,79 @@ class FaceGAN():
 	def __call__(self):
 		seed = 9
 		batch_size = 10
-		number_of_images = 1000
-
-		data_neg, data_pos = get_data(number_of_images, 0.7, seed)
+		start_images = 0
+		number_of_images = 20
+		train_ratio= 0.7
 
 		self.reset_graph(seed)
 
-		self.build_model(seed, batch_size, data_neg, data_pos)
+		self.build_model(seed, batch_size)
 
 		init = tf.global_variables_initializer()
 
-		with tf.Session() as sess:
-			n_epochs = 10
-			sess.run(init)
+		self.saver = tf.train.Saver()
+
+		with tf.Session() as self.sess:
+			# restore check-point if it exits
+			if (True):
+				could_load, checkpoint_counter = self.load()
+			else:
+				could_load = False
+
+			if could_load:
+				start_images = int(checkpoint_counter)
+				print(" [*] Load SUCCESS")
+			else:
+				start_images = 0
+				print(" [!] Load failed...")
+
+			if ((start_images + number_of_images) > 9817):
+				print('not enough images')
+				sys.exit()
+
+			print(start_images + number_of_images)
+			data_neg, data_pos = get_data(start_images, number_of_images, train_ratio, seed)
+
+			n_epochs = 1
+			self.sess.run(init)
 			for epoch in range(n_epochs):
 				# TODO - this fails
-				for i in range(int(np.floor(number_of_images/batch_size))):
-					batch_pos = data_pos['train_data'][i*batch_size:(i*batch_size)+batch_size]
-					batch_neg = data_neg['train_data'][i*batch_size:(i*batch_size)+batch_size]
-					labels_pos = data_pos['train_labels'][i*batch_size:(i*batch_size)+batch_size]
-					labels_neg = data_neg['train_labels'][i*batch_size:(i*batch_size)+batch_size]
-					batch = np.concatenate((batch_pos, batch_neg), axis = 0)
-					batch_labels = np.concatenate((labels_pos, labels_neg), axis = 0)
-
+				for i in range(int(np.floor(float(number_of_images*train_ratio)/batch_size))):
+					f = open("processfile.txt", "w")
+					f.write('processing image # ' + str(start_images + ((i*batch_size)+batch_size)) +' in batch ' +str(i) +' in epoch ' +str(epoch))
+					f.close()
+					print(start_images + (i*batch_size), (start_images + (i*batch_size)+batch_size))
+					batch_pos = data_pos['train_data'][(i*batch_size):((i*batch_size)+batch_size)]
+					batch_neg = data_neg['train_data'][(i*batch_size):((i*batch_size)+batch_size)]
+					labels_pos = data_pos['train_labels'][(i*batch_size):((i*batch_size)+batch_size)]
+					labels_neg = data_neg['train_labels'][(i*batch_size):((i*batch_size)+batch_size)]
+					print(data_pos['train_data'].shape,data_neg['train_data'].shape,data_pos['train_labels'].shape,data_neg['train_labels'].shape)
 					# train discriminator
-					loss, _ = sess.run(
+					loss, _ = self.sess.run(
 						[self.loss_cls, self.train_step_discriminator],
 						feed_dict = {
 							self.X_neg : batch_neg,
 							self.X_pos : batch_pos,
 							self.Y_neg : labels_neg,
-						 	self.Y_pos : labels_pos
+							self.Y_pos : labels_pos
 						}
 					)
 					print(f'Loss for discriminator is: {loss}')
 
 					# train generator_0
-					loss, _ = sess.run(
+					loss, _ = self.sess.run(
 						[self.loss_g_0, self.train_step_g_0],
 						feed_dict = {
 							self.X_neg : batch_neg,
 							self.X_pos : batch_pos,
 							self.Y_neg : labels_neg,
-						 	self.Y_pos : labels_pos
+							self.Y_pos : labels_pos
 						}
 					)
 					print(f'Loss for g_0 is: {loss}')
 
 					# train generator_1
-					loss, _, image, image_1, image_2 = sess.run(
+					loss, _, image, image_1, image_2 = self.sess.run(
 						[self.loss_g_1, self.train_step_g_1, self.test_image,self.test_image_1,self.test_image_2],
 						feed_dict = {
 							self.X_neg : batch_neg,
@@ -202,6 +253,8 @@ class FaceGAN():
 					im = Image.fromarray(image_2.astype('uint8'))
 					im.save('test_org.png')
 					im.close()
+
+					self.save(start_images + ((i*batch_size)+batch_size))
 
 fg = FaceGAN()
 fg()
