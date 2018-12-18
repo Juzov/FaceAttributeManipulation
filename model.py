@@ -189,7 +189,6 @@ class FaceGAN():
 				print('not enough images')
 				sys.exit()
 
-			print(start_images + number_of_images)
 			data_neg, data_pos = get_data(start_images, number_of_images, train_ratio, seed)
 
 			n_epochs = 1
@@ -200,12 +199,12 @@ class FaceGAN():
 					f = open("processfile.txt", "w")
 					f.write('processing image # ' + str(start_images + ((i*batch_size)+batch_size)) +' in batch ' +str(i) +' in epoch ' +str(epoch))
 					f.close()
-					print(start_images + (i*batch_size), (start_images + (i*batch_size)+batch_size))
+
 					batch_pos = data_pos['train_data'][(i*batch_size):((i*batch_size)+batch_size)]
 					batch_neg = data_neg['train_data'][(i*batch_size):((i*batch_size)+batch_size)]
 					labels_pos = data_pos['train_labels'][(i*batch_size):((i*batch_size)+batch_size)]
 					labels_neg = data_neg['train_labels'][(i*batch_size):((i*batch_size)+batch_size)]
-					print(data_pos['train_data'].shape,data_neg['train_data'].shape,data_pos['train_labels'].shape,data_neg['train_labels'].shape)
+
 					# train discriminator
 					loss, _ = self.sess.run(
 						[self.loss_cls, self.train_step_discriminator],
