@@ -14,3 +14,8 @@ var
 .DS_Store
 img_align_celeba
 __pycache__
+checkpoints
+glasses/*
+glasses
+glasses/negatives
+glasses/positives

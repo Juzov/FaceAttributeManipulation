@@ -3,6 +3,9 @@ from PIL import Image
 import random
 import numpy as np
 
+def scale_image(img):
+    return 255.0 * (img - np.min(img)) / (np.max(img) - np.min(img))
+
 def process_images(filenames, attribute):
 	dataset = np.zeros((len(filenames), 128, 128, 3), dtype='int64')
 	for i, filename in enumerate(filenames):
@@ -10,9 +13,9 @@ def process_images(filenames, attribute):
 		if attribute == 0:
 			#'/floyd/input/foo' - for deployed
 			#img_align_celeba
-			path = os.path.join('img_align_celeba', 'negatives')
+			path = os.path.join('/floyd/input/foo', 'negatives')
 		else:
-			path = os.path.join('img_align_celeba', 'positives')
+			path = os.path.join('/floyd/input/foo', 'positives')
 
 		im = Image.open(os.path.join(path,filename))
 		im = im.resize([128, 128])
@@ -45,8 +48,8 @@ def get_attribute_training_test(start_images, size, training_ratio, seed, filena
 def get_data(start_images, size = 1000, training_ratio=0.7, seed=9):
 	random.seed(seed)
 
-	positive_path = os.path.join('img_align_celeba', 'positives')
-	negative_path = os.path.join('img_align_celeba', 'negatives')
+	positive_path = os.path.join('/floyd/input/foo', 'positives')
+	negative_path = os.path.join('/floyd/input/foo', 'negatives')
 
 	negative_filenames = os.listdir(negative_path)
 	positive_filenames = os.listdir(positive_path)

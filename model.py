@@ -7,14 +7,15 @@ from time import time
 from tensorflow.keras import layers
 from generator import Generator
 from discriminator import Discriminator
-from utils import get_data
+from utils import get_data, scale_image
 from tensorflow.keras.callbacks import TensorBoard as tb
 from tensorflow.python.tools import inspect_checkpoint as chkp
 
 class FaceGAN():
 	def __init__(self):
 		self.model_name = 'face-gan'
-		self.checkpoint_dir = 'checkpoints'
+		self.checkpoint_save_dir = 'checkpoints'
+		self.checkpoint_load_dir = '/floyd/input/checkpoints'
 
 	def reset_graph(self, seed=42):
 		tf.reset_default_graph()
@@ -23,16 +24,16 @@ class FaceGAN():
 
 	def save(self, step):
 
-		if not os.path.exists(self.checkpoint_dir):
-			os.makedirs(self.checkpoint_dir)
+		if not os.path.exists(self.checkpoint_save_dir):
+			os.makedirs(self.checkpoint_save_dir)
 
-		self.saver.save(self.sess,os.path.join(self.checkpoint_dir, self.model_name+'.model'), global_step=step)
+		self.saver.save(self.sess,os.path.join(self.checkpoint_save_dir, self.model_name+'.model'), global_step=step)
 
 	def load(self):
 		import re
 		print(" [*] Reading checkpoints...")
 
-		ckpt = tf.train.get_checkpoint_state(self.checkpoint_dir)
+		ckpt = tf.train.get_checkpoint_state(self.checkpoint_load_dir)
 		if ckpt and ckpt.model_checkpoint_path:
 			ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
 			self.saver.restore(self.sess, ckpt.model_checkpoint_path)
@@ -63,19 +64,18 @@ class FaceGAN():
 		self.test_image = x_tilde_0[0]
 		self.test_image_2 = self.X_neg[0]
 		x_tilde_1 = tf.add(r_1, self.X_pos)
+		self.test_image_3 = r_1[0]
+		self.test_image_4 = x_tilde_1[0]
 
 		discriminator_fake_input = tf.concat([x_tilde_0,x_tilde_1], axis = 0)
 		discriminator_real_input = tf.concat([self.X_neg, self.X_pos], axis = 0)
 
-		phi_fake, y_hat_fake_logits, y_hat_fake = d(seed, discriminator_fake_input, False)
-		phi_real, y_hat_real_logits, y_hat_real = d(seed, discriminator_real_input, True)
+		_, y_hat_fake_logits, y_hat_fake = d(seed, discriminator_fake_input, False)
+		_, y_hat_real_logits, y_hat_real = d(seed, discriminator_real_input, True)
 
 		"""
 			DISCRIMINATOR LOSS
 		"""
-
-
-
 		# Cls loss
 		fake_labels = tf.fill([discriminator_fake_input.shape[0].value], 2)
 		real_labels = tf.concat([self.Y_neg, self.Y_pos], axis = 0)
@@ -97,14 +97,21 @@ class FaceGAN():
 		"""
 
 		# Perception loss
-		self.loss_per = tf.losses.absolute_difference(
-			labels = phi_real,
-			predictions = phi_fake
+		phi_fake_0, _, _ = d(seed, x_tilde_0, True)
+		phi_fake_1, _, _ = d(seed, x_tilde_1, True)
+		phi_real_0, _, _ = d(seed, self.X_neg, True)
+		phi_real_1, _, _ = d(seed, self.X_pos, True)
+		self.loss_per_0 = tf.losses.absolute_difference(
+			labels = phi_real_0,
+			predictions = phi_fake_0
 		)
-
+		self.loss_per_1 = tf.losses.absolute_difference(
+			labels = phi_real_1,
+			predictions = phi_fake_1
+		)
 		# Pix loss
-		self.loss_pix_0 = tf.reduce_sum(tf.abs(r_0))
-		self.loss_pix_1 = tf.reduce_sum(tf.abs(r_1))
+		self.loss_pix_0 = tf.reduce_mean(tf.reduce_sum(tf.abs(r_0), axis=[1, 2, 3]))
+		self.loss_pix_1 = tf.reduce_mean(tf.reduce_sum(tf.abs(r_1), axis=[1, 2, 3]))
 
 		# Dual loss
 		r_0_reverse = g_0(seed, x_tilde_1, "g_0", True)
@@ -121,26 +128,34 @@ class FaceGAN():
 		logits_dual = tf.concat([logits_dual_0, logits_dual_1], axis=0)
 
 			#loss
-		self.loss_dual = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-			labels = real_labels,
-			logits = logits_dual
+		self.loss_dual_0 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+			labels = self.Y_neg,
+			logits = logits_dual_0
+		))
+		self.loss_dual_1 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+			labels = self.Y_pos,
+			logits = logits_dual_1
 		))
 
 		# GAN loss
 		_, logits_gan_0, _ = d(seed, x_tilde_0, True)
 		_, logits_gan_1, _ = d(seed, x_tilde_1, True)
 
-		logits_gan = tf.concat([logits_gan_0, logits_gan_1], axis=0)
+		#logits_gan = tf.concat([logits_gan_0, logits_gan_1], axis=0)
 
 			#loss
-		self.loss_gan = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-			labels = real_labels,
-			logits = logits_gan
+		self.loss_gan_0 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+			labels = self.Y_neg,
+			logits = logits_gan_0
+		))
+		self.loss_gan_1 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+			labels = self.Y_pos,
+			logits = logits_gan_1
 		))
 
 		# Generator loss
-		self.loss_g_0 = self.loss_gan + self.loss_dual + (5e-4 * self.loss_pix_0) + (5e-5 * self.loss_per)
-		self.loss_g_1 = self.loss_gan + self.loss_dual + (5e-4 * self.loss_pix_1) + (5e-5 * self.loss_per)
+		self.loss_g_0 = self.loss_gan_0 + self.loss_dual_0 + (5e-4 * self.loss_pix_0) + (5e-5 * self.loss_per_0)
+		self.loss_g_1 = self.loss_gan_1 + self.loss_dual_1 + (5e-4 * self.loss_pix_1) + (5e-5 * self.loss_per_1)
 
 		t_vars = tf.trainable_variables()
 		g_0_vars = [var for var in t_vars if 'g_0_' in var.name]
@@ -171,6 +186,8 @@ class FaceGAN():
 
 		init = tf.global_variables_initializer()
 
+		writer = tf.summary.FileWriter("graphs", tf.get_default_graph())
+
 		self.saver = tf.train.Saver(max_to_keep=2)
 
 		with tf.Session() as self.sess:
@@ -181,7 +198,8 @@ class FaceGAN():
 				could_load = False
 
 			if could_load:
-				start_images = int(checkpoint_counter)
+				#
+				start_images = 0
 				print(" [*] Load SUCCESS")
 			else:
 				self.sess.run(init)
@@ -233,8 +251,8 @@ class FaceGAN():
 					print(f'Loss for g_0 is: {loss}')
 
 					# train generator_1
-					loss, _, image, image_1, image_2 = self.sess.run(
-						[self.loss_g_1, self.train_step_g_1, self.test_image,self.test_image_1,self.test_image_2],
+					loss, _, image, image_1, image_2, image_3, image_4, loss_cls ,loss_per ,loss_pix_0 ,loss_pix_1 ,loss_dual ,loss_gan ,loss_g_0 ,loss_g_1  = self.sess.run(
+						[self.loss_g_1, self.train_step_g_1, self.test_image,self.test_image_1,self.test_image_2,self.test_image_3,self.test_image_4, self.loss_cls, self.loss_per_0, self.loss_pix_0, self.loss_pix_1, self.loss_dual_0, self.loss_gan_0, self.loss_g_0, self.loss_g_1],
 						feed_dict = {
 							self.X_neg : batch_neg,
 							self.X_pos : batch_pos,
@@ -244,16 +262,26 @@ class FaceGAN():
 					)
 					print(f'Loss for g_1 is: {loss}')
 
-					im = Image.fromarray(image.astype('uint8'))
+					print(f'all them losses: {loss_cls} ,{loss_per} ,{loss_pix_0} ,{loss_pix_1} ,{loss_dual} ,{loss_gan} ,{loss_g_0} ,{loss_g_1}')
+
+					im = Image.fromarray(scale_image(image).astype('uint8'))
 					im.save('test.png')
 					im.close()
 
-					im = Image.fromarray(image_1.astype('uint8'))
+					im = Image.fromarray(scale_image(image_1).astype('uint8'))
 					im.save('test_res.png')
 					im.close()
 
-					im = Image.fromarray(image_2.astype('uint8'))
+					im = Image.fromarray(scale_image(image_2).astype('uint8'))
 					im.save('test_org.png')
+					im.close()
+
+					im = Image.fromarray(scale_image(image_3).astype('uint8'))
+					im.save('test_res_remove.png')
+					im.close()
+
+					im = Image.fromarray(scale_image(image_4).astype('uint8'))
+					im.save('test_remove.png')
 					im.close()
 
 					self.save(start_images + ((i*batch_size)+batch_size))

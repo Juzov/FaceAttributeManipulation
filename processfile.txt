@@ -1,1 +1,1 @@
-processing image # 410 in batch 5 in epoch 0
+processing image # 10 in batch 0 in epoch 0
