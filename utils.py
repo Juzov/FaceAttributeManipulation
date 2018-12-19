@@ -8,6 +8,8 @@ def process_images(filenames, attribute):
 	for i, filename in enumerate(filenames):
 		path = ''
 		if attribute == 0:
+			#'/floyd/input/foo' - for deployed
+			#img_align_celeba
 			path = os.path.join('img_align_celeba', 'negatives')
 		else:
 			path = os.path.join('img_align_celeba', 'positives')

@@ -9,6 +9,7 @@ from generator import Generator
 from discriminator import Discriminator
 from utils import get_data
 from tensorflow.keras.callbacks import TensorBoard as tb
+from tensorflow.python.tools import inspect_checkpoint as chkp
 
 class FaceGAN():
 	def __init__(self):
@@ -34,9 +35,10 @@ class FaceGAN():
 		ckpt = tf.train.get_checkpoint_state(self.checkpoint_dir)
 		if ckpt and ckpt.model_checkpoint_path:
 			ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-			self.saver.restore(self.sess, os.path.join(self.checkpoint_dir, ckpt_name))
+			self.saver.restore(self.sess, ckpt.model_checkpoint_path)
 			counter = int(next(re.finditer("(\d+)(?!.*\d)",ckpt_name)).group(0))
 			print(" [*] Success to read {}".format(ckpt_name))
+			#chkp.print_tensors_in_checkpoint_file(os.path.join(self.checkpoint_dir, ckpt_name), tensor_name='', all_tensors=True)
 			return True, counter
 		else:
 			print(" [*] Failed to find a checkpoint")
@@ -160,7 +162,7 @@ class FaceGAN():
 		seed = 9
 		batch_size = 10
 		start_images = 0
-		number_of_images = 20
+		number_of_images = 1000
 		train_ratio= 0.7
 
 		self.reset_graph(seed)
@@ -169,7 +171,7 @@ class FaceGAN():
 
 		init = tf.global_variables_initializer()
 
-		self.saver = tf.train.Saver()
+		self.saver = tf.train.Saver(max_to_keep=2)
 
 		with tf.Session() as self.sess:
 			# restore check-point if it exits
@@ -182,6 +184,7 @@ class FaceGAN():
 				start_images = int(checkpoint_counter)
 				print(" [*] Load SUCCESS")
 			else:
+				self.sess.run(init)
 				start_images = 0
 				print(" [!] Load failed...")
 
@@ -191,8 +194,8 @@ class FaceGAN():
 
 			data_neg, data_pos = get_data(start_images, number_of_images, train_ratio, seed)
 
-			n_epochs = 1
-			self.sess.run(init)
+			n_epochs = 1000
+
 			for epoch in range(n_epochs):
 				# TODO - this fails
 				for i in range(int(np.floor(float(number_of_images*train_ratio)/batch_size))):
