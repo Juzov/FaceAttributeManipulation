@@ -15,7 +15,7 @@ class FaceGAN():
 	def __init__(self):
 		self.model_name = 'face-gan'
 		self.checkpoint_save_dir = 'checkpoints'
-		self.checkpoint_load_dir = '/floyd/input/checkpoints'
+		self.checkpoint_load_dir = 'checkpoints'
 
 	def reset_graph(self, seed=42):
 		tf.reset_default_graph()
@@ -46,125 +46,122 @@ class FaceGAN():
 			return False, 0
 
 	def build_model(self, seed, batch_size):
-		self.X_neg = tf.placeholder(tf.float32, [batch_size, 128, 128, 3])
-		self.Y_neg = tf.placeholder(tf.int32, [batch_size])
+		self.X_neg = tf.placeholder(tf.float32, [batch_size, 128, 128, 3], name="X_neg")
+		self.Y_neg = tf.placeholder(tf.int32, [batch_size], name="Y_neg")
 
-		self.X_pos = tf.placeholder(tf.float32, [batch_size, 128, 128, 3])
-		self.Y_pos = tf.placeholder(tf.int32, [batch_size])
+		self.X_pos = tf.placeholder(tf.float32, [batch_size, 128, 128, 3], name="X_pos")
+		self.Y_pos = tf.placeholder(tf.int32, [batch_size], name="Y_pos")
 
+		# Convert labels to one_hot, we need this in order to filter out the softmax-prob for the specific label
+		Y_neg_oh = tf.one_hot(self.Y_neg, 3)
+		Y_pos_oh = tf.one_hot(self.Y_pos, 3)
+		Y_fake_oh = tf.one_hot(tf.ones(batch_size, dtype=tf.int32)*2, 3)
+
+		# Get instances to the network-classes
 		g_0 = Generator()
 		g_1 = Generator()
 		d = Discriminator()
 
-		r_0 = g_0(seed, self.X_neg, "g_0", False)
-		r_1 = g_1(seed, self.X_pos, "g_1", False)
+		# Residual images/outputs from generators
+		r0 = g_0(seed, self.X_neg, "g_0")
+		r1 = g_1(seed, self.X_pos, "g_1")
 
-		x_tilde_0 = tf.add(r_0, self.X_neg)
-		self.test_image_1 = r_0[0]
-		self.test_image = x_tilde_0[0]
-		self.test_image_2 = self.X_neg[0]
-		x_tilde_1 = tf.add(r_1, self.X_pos)
-		self.test_image_3 = r_1[0]
-		self.test_image_4 = x_tilde_1[0]
+		# The altered image
+		x_theta_0 = tf.add(r0, self.X_neg)
+		x_theta_1 = tf.add(r1, self.X_pos)
 
-		discriminator_fake_input = tf.concat([x_tilde_0,x_tilde_1], axis = 0)
-		discriminator_real_input = tf.concat([self.X_neg, self.X_pos], axis = 0)
+		# Discriminator output
+		phi_fake_0, _, p_fake_0 = d(seed, x_theta_0)
+		phi_fake_1, _, p_fake_1 = d(seed, x_theta_1, True)
+		phi_real_0, _, p_real_0 = d(seed, self.X_neg, True)
+		phi_real_1, _, p_real_1 = d(seed, self.X_pos, True)
 
-		_, y_hat_fake_logits, y_hat_fake = d(seed, discriminator_fake_input, False)
-		_, y_hat_real_logits, y_hat_real = d(seed, discriminator_real_input, True)
+		pt_fake_0 = p_fake_0 * Y_fake_oh
+		pt_fake_1 = p_fake_1 * Y_fake_oh
+		pt_real_0 = p_real_0 * Y_neg_oh
+		pt_real_1 = p_real_1 * Y_pos_oh
 
-		"""
-			DISCRIMINATOR LOSS
-		"""
-		# Cls loss
-		fake_labels = tf.fill([discriminator_fake_input.shape[0].value], 2)
-		real_labels = tf.concat([self.Y_neg, self.Y_pos], axis = 0)
-		# real_one_hot = tf.one_hot(real_labels, depth = 3)
+		# Dual output
+		dual_r_0 = g_1(seed, x_theta_0, "g_1", True)
+		dual_r_1 = g_0(seed, x_theta_1, "g_0", True)
 
+		dual_theta_0 = tf.add(dual_r_0, x_theta_0)
+		dual_theta_1 = tf.add(dual_r_1, x_theta_1)
 
-		cls_labels = tf.concat([real_labels, fake_labels], axis = 0)
-		# cls_labels = tf.one_hot(cls_labels, depth = 3)
+		_, _, p_dual_0 = d(seed, dual_theta_0, True)
+		_, _, p_dual_1 = d(seed, dual_theta_1, True)
 
-		cls_data = tf.concat([y_hat_real_logits, y_hat_fake_logits], axis = 0)
+		pt_dual_0 = p_dual_0 * Y_neg_oh
+		pt_dual_1 = p_dual_1 * Y_pos_oh
 
-		self.loss_cls = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-			labels = cls_labels,
-			logits = cls_data
-		))
+		self.all_images = {
+			'neg_org' : self.X_neg,
+			'pos_org' : self.X_pos,
+			'res_add' : r0,
+			'res_rem' : r1,
+			'added'   : x_theta_0,
+			'removed' : x_theta_1,
+		}
 
-		"""
-			GENERATOR LOSS
-		"""
+		""" LOSSES """
+		small_value = 1e-9 # we need this to avoid nan/inf
+		# Loss_pix
+		loss_pix_0 = tf.reduce_mean(tf.reduce_sum(tf.abs(r0), axis = [1, 2, 3]))
+		loss_pix_1 = tf.reduce_mean(tf.reduce_sum(tf.abs(r1), axis = [1, 2, 3]))
 
-		# Perception loss
-		phi_fake_0, _, _ = d(seed, x_tilde_0, True)
-		phi_fake_1, _, _ = d(seed, x_tilde_1, True)
-		phi_real_0, _, _ = d(seed, self.X_neg, True)
-		phi_real_1, _, _ = d(seed, self.X_pos, True)
-		self.loss_per_0 = tf.losses.absolute_difference(
-			labels = phi_real_0,
-			predictions = phi_fake_0
-		)
-		self.loss_per_1 = tf.losses.absolute_difference(
-			labels = phi_real_1,
-			predictions = phi_fake_1
-		)
-		# Pix loss
-		self.loss_pix_0 = tf.reduce_mean(tf.reduce_sum(tf.abs(r_0), axis=[1, 2, 3]))
-		self.loss_pix_1 = tf.reduce_mean(tf.reduce_sum(tf.abs(r_1), axis=[1, 2, 3]))
+		# Loss_cls
+		loss_cls_fake_0 = tf.reduce_mean(-tf.log(tf.reduce_sum(pt_fake_0, axis = 1) + small_value))
+		loss_cls_fake_1 = tf.reduce_mean(-tf.log(tf.reduce_sum(pt_fake_1, axis = 1) + small_value))
+		loss_cls_real_0 = tf.reduce_mean(-tf.log(tf.reduce_sum(pt_real_0, axis = 1) + small_value))
+		loss_cls_real_1 = tf.reduce_mean(-tf.log(tf.reduce_sum(pt_real_1, axis = 1) + small_value))
 
-		# Dual loss
-		r_0_reverse = g_0(seed, x_tilde_1, "g_0", True)
-		r_1_reverse = g_1(seed, x_tilde_0, "g_1", True)
+		# Loss_per
+		loss_per_0 = tf.reduce_mean(tf.reduce_sum(tf.abs(tf.subtract(phi_real_0, phi_fake_0)), axis=[1, 2, 3]))
+		loss_per_1 = tf.reduce_mean(tf.reduce_sum(tf.abs(tf.subtract(phi_real_1, phi_fake_1)), axis=[1, 2, 3]))
 
-		x_tilde_0_dual = tf.add(r_0_reverse, x_tilde_1)
-		x_tilde_1_dual = tf.add(r_1_reverse, x_tilde_0)
+		# Loss_gan
+		loss_gan_0 = tf.reduce_mean(-tf.log(tf.reduce_sum(p_fake_0 * Y_pos_oh, axis = 1) + small_value))
+		loss_gan_1 = tf.reduce_mean(1 - tf.log(tf.reduce_sum(p_fake_1 * Y_neg_oh, axis = 1) + small_value))
 
-			#input for g0 loss
-		_, logits_dual_0, _ = d(seed, x_tilde_1_dual, True)
-			#input for g1 loss
-		_, logits_dual_1, _ = d(seed, x_tilde_0_dual, True)
+		# Loss_dual
+		loss_dual_0 = tf.reduce_mean(1 - tf.log(tf.reduce_sum(pt_dual_0, axis = 1) + small_value))
+		loss_dual_1 = tf.reduce_mean(-tf.log(tf.reduce_sum(pt_dual_1, axis = 1) + small_value))
 
-		logits_dual = tf.concat([logits_dual_0, logits_dual_1], axis=0)
+		self.all_losses = {
+			'loss_pix_0' : loss_pix_0,
+			'loss_pix_1' : loss_pix_1,
+			'loss_cls_fake_0' : loss_cls_fake_0,
+			'loss_cls_fake_1' : loss_cls_fake_1,
+			'loss_cls_real_0' : loss_cls_real_0,
+			'loss_cls_real_1' : loss_cls_real_1,
+			'loss_per_0' : loss_per_0,
+			'loss_per_1' : loss_per_1,
+			'loss_gan_0' : loss_gan_0,
+			'loss_gan_1' : loss_gan_1,
+			'loss_dual_0' : loss_dual_0,
+			'loss_dual_1' : loss_dual_1,
+		}
 
-			#loss
-		self.loss_dual_0 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-			labels = self.Y_neg,
-			logits = logits_dual_0
-		))
-		self.loss_dual_1 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-			labels = self.Y_pos,
-			logits = logits_dual_1
-		))
+		""" Final put together losses """
+		# Loss for generators
+		alpha = 5e-4
+		beta = 0.1 * alpha
+		self.loss_g_0 = loss_gan_0 + loss_dual_0 + (alpha * loss_pix_0) + (beta * loss_per_0)
+		self.loss_g_1 = loss_gan_1 + loss_dual_1 + (alpha * loss_pix_1) + (beta * loss_per_1)
 
-		# GAN loss
-		_, logits_gan_0, _ = d(seed, x_tilde_0, True)
-		_, logits_gan_1, _ = d(seed, x_tilde_1, True)
+		# Loss for discriminator
+		self.loss_d = loss_cls_fake_0 + loss_cls_fake_1 + loss_cls_real_0 + loss_cls_real_1
 
-		#logits_gan = tf.concat([logits_gan_0, logits_gan_1], axis=0)
-
-			#loss
-		self.loss_gan_0 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-			labels = self.Y_neg,
-			logits = logits_gan_0
-		))
-		self.loss_gan_1 = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-			labels = self.Y_pos,
-			logits = logits_gan_1
-		))
-
-		# Generator loss
-		self.loss_g_0 = self.loss_gan_0 + self.loss_dual_0 + (5e-4 * self.loss_pix_0) + (5e-5 * self.loss_per_0)
-		self.loss_g_1 = self.loss_gan_1 + self.loss_dual_1 + (5e-4 * self.loss_pix_1) + (5e-5 * self.loss_per_1)
-
+		# Filter out the variables for each of the networks
 		t_vars = tf.trainable_variables()
 		g_0_vars = [var for var in t_vars if 'g_0_' in var.name]
 		g_1_vars = [var for var in t_vars if 'g_1_' in var.name]
 		d_vars = [var for var in t_vars if 'd_' in var.name]
 
+		# Set up optimizers targeting those variables
 		with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
 			discrimitator_optimizer = tf.train.AdamOptimizer(learning_rate = 2e-4)
-			self.train_step_discriminator = discrimitator_optimizer.minimize(self.loss_cls, var_list = d_vars)
+			self.train_step_discriminator = discrimitator_optimizer.minimize(self.loss_d, var_list = d_vars)
 
 			g_0_optimizer = tf.train.AdamOptimizer(learning_rate = 2e-4)
 			self.train_step_g_0 = g_0_optimizer.minimize(self.loss_g_0, var_list = g_0_vars)
@@ -212,7 +209,7 @@ class FaceGAN():
 
 			data_neg, data_pos = get_data(start_images, number_of_images, train_ratio, seed)
 
-			n_epochs = 1000
+			n_epochs = 10000
 
 			for epoch in range(n_epochs):
 				# TODO - this fails
@@ -228,7 +225,7 @@ class FaceGAN():
 
 					# train discriminator
 					loss, _ = self.sess.run(
-						[self.loss_cls, self.train_step_discriminator],
+						[self.loss_d, self.train_step_discriminator],
 						feed_dict = {
 							self.X_neg : batch_neg,
 							self.X_pos : batch_pos,
@@ -251,8 +248,8 @@ class FaceGAN():
 					print(f'Loss for g_0 is: {loss}')
 
 					# train generator_1
-					loss, _, image, image_1, image_2, image_3, image_4, loss_cls ,loss_per ,loss_pix_0 ,loss_pix_1 ,loss_dual ,loss_gan ,loss_g_0 ,loss_g_1  = self.sess.run(
-						[self.loss_g_1, self.train_step_g_1, self.test_image,self.test_image_1,self.test_image_2,self.test_image_3,self.test_image_4, self.loss_cls, self.loss_per_0, self.loss_pix_0, self.loss_pix_1, self.loss_dual_0, self.loss_gan_0, self.loss_g_0, self.loss_g_1],
+					loss, _ = self.sess.run(
+						[self.loss_g_1, self.train_step_g_1],
 						feed_dict = {
 							self.X_neg : batch_neg,
 							self.X_pos : batch_pos,
@@ -262,27 +259,22 @@ class FaceGAN():
 					)
 					print(f'Loss for g_1 is: {loss}')
 
-					print(f'all them losses: {loss_cls} ,{loss_per} ,{loss_pix_0} ,{loss_pix_1} ,{loss_dual} ,{loss_gan} ,{loss_g_0} ,{loss_g_1}')
+					all_loss, all_images = self.sess.run(
+						[self.all_losses, self.all_images],
+						feed_dict = {
+							self.X_neg : batch_neg,
+							self.X_pos : batch_pos,
+							self.Y_neg : labels_neg,
+							self.Y_pos : labels_pos
+						}
+					)
+					print(f'all losses: {all_loss}')
 
-					im = Image.fromarray(scale_image(image).astype('uint8'))
-					im.save('test.png')
-					im.close()
-
-					im = Image.fromarray(scale_image(image_1).astype('uint8'))
-					im.save('test_res.png')
-					im.close()
-
-					im = Image.fromarray(scale_image(image_2).astype('uint8'))
-					im.save('test_org.png')
-					im.close()
-
-					im = Image.fromarray(scale_image(image_3).astype('uint8'))
-					im.save('test_res_remove.png')
-					im.close()
-
-					im = Image.fromarray(scale_image(image_4).astype('uint8'))
-					im.save('test_remove.png')
-					im.close()
+					for key, img_collection in all_images.items():
+						for j,img in enumerate(img_collection):
+							im = Image.fromarray(scale_image(img).astype('uint8'))
+							im.save(f'images/{key}-{str(j)}.png')
+							im.close()
 
 					self.save(start_images + ((i*batch_size)+batch_size))
 

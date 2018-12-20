@@ -13,9 +13,9 @@ def process_images(filenames, attribute):
 		if attribute == 0:
 			#'/floyd/input/foo' - for deployed
 			#img_align_celeba
-			path = os.path.join('/floyd/input/foo', 'negatives')
+			path = os.path.join('glasses', 'negatives')
 		else:
-			path = os.path.join('/floyd/input/foo', 'positives')
+			path = os.path.join('glasses', 'positives')
 
 		im = Image.open(os.path.join(path,filename))
 		im = im.resize([128, 128])
@@ -48,8 +48,8 @@ def get_attribute_training_test(start_images, size, training_ratio, seed, filena
 def get_data(start_images, size = 1000, training_ratio=0.7, seed=9):
 	random.seed(seed)
 
-	positive_path = os.path.join('/floyd/input/foo', 'positives')
-	negative_path = os.path.join('/floyd/input/foo', 'negatives')
+	positive_path = os.path.join('glasses', 'positives')
+	negative_path = os.path.join('glasses', 'negatives')
 
 	negative_filenames = os.listdir(negative_path)
 	positive_filenames = os.listdir(positive_path)
