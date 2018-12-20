@@ -172,7 +172,7 @@ class FaceGAN():
 
 	def __call__(self):
 		seed = 9
-		batch_size = 10
+		batch_size = 5
 		start_images = 0
 		number_of_images = 1000
 		train_ratio= 0.7
@@ -213,11 +213,8 @@ class FaceGAN():
 
 			for epoch in range(n_epochs):
 				# TODO - this fails
+				print(f'epoch{epoch}')
 				for i in range(int(np.floor(float(number_of_images*train_ratio)/batch_size))):
-					f = open("processfile.txt", "w")
-					f.write('processing image # ' + str(start_images + ((i*batch_size)+batch_size)) +' in batch ' +str(i) +' in epoch ' +str(epoch))
-					f.close()
-
 					batch_pos = data_pos['train_data'][(i*batch_size):((i*batch_size)+batch_size)]
 					batch_neg = data_neg['train_data'][(i*batch_size):((i*batch_size)+batch_size)]
 					labels_pos = data_pos['train_labels'][(i*batch_size):((i*batch_size)+batch_size)]
