@@ -23,10 +23,8 @@ class Generator:
 			)
 
 			bn1 = tf.nn.leaky_relu(
-				tf.contrib.layers.batch_norm(
+				tf.contrib.layers.instance_norm(
 					conv1,
-					decay=0.9,
-					updates_collections=None,
 					epsilon=1e-5,
 					scale=True,
 					scope= gen_name + '_bn_1'
@@ -43,10 +41,8 @@ class Generator:
 			)
 
 			bn2 = tf.nn.leaky_relu(
-				tf.contrib.layers.batch_norm(
+				tf.contrib.layers.instance_norm(
 					conv2,
-					decay=0.9,
-					updates_collections=None,
 					epsilon=1e-5,
 					scale=True,
 					scope= gen_name + '_bn_2'
@@ -63,10 +59,8 @@ class Generator:
 			)
 
 			bn3 = tf.nn.leaky_relu(
-				tf.contrib.layers.batch_norm(
+				tf.contrib.layers.instance_norm(
 					conv3,
-					decay=0.9,
-					updates_collections=None,
 					epsilon=1e-5,
 					scale=True,
 					scope= gen_name + '_bn_3'
@@ -83,10 +77,8 @@ class Generator:
 			)
 
 			bn4 = tf.nn.leaky_relu(
-				tf.contrib.layers.batch_norm(
+				tf.contrib.layers.instance_norm(
 					deconv4,
-					decay=0.9,
-					updates_collections=None,
 					epsilon=1e-5,
 					scale=True,
 					scope= gen_name + '_bn_4'
@@ -103,10 +95,8 @@ class Generator:
 			)
 
 			bn5 = tf.nn.leaky_relu(
-				tf.contrib.layers.batch_norm(
+				tf.contrib.layers.instance_norm(
 					deconv5,
-					decay=0.9,
-					updates_collections=None,
 					epsilon=1e-5,
 					scale=True,
 					scope= gen_name + '_bn_5'
@@ -127,24 +117,24 @@ class Generator:
 
 	def conv2d(self, variable_scope, input, filters, kernel_size, stride, name):
 
-		w = tf.get_variable('w' + name, [kernel_size[0], kernel_size[1], input.get_shape()[-1], filters],
-			initializer=tf.keras.initializers.he_normal(seed=self.seed))
+		w = tf.get_variable(name + 'w', [kernel_size[0], kernel_size[1], input.get_shape()[-1], filters],
+			initializer=tf.truncated_normal_initializer(stddev = 0.02, seed = self.seed))
 
 		conv = tf.nn.conv2d(input, w, strides=[1, stride, stride, 1], padding='SAME', name=name)
 
-		biases = tf.get_variable('biases' + name, [filters], initializer=tf.constant_initializer(0.0))
+		biases = tf.get_variable(name + 'biases', [filters], initializer=tf.constant_initializer(0.0))
 
 		conv = tf.reshape(tf.nn.bias_add(conv, biases), conv.get_shape())
 
 		return conv
 
 	def deconv2d(self, variable_scope, input, filters, kernel_size, stride, name):
-		w = tf.get_variable('w' + name, [kernel_size[0], kernel_size[1], filters, input.get_shape()[-1]],
-			initializer=tf.keras.initializers.he_normal(seed=self.seed))
+		w = tf.get_variable(name + 'w', [kernel_size[0], kernel_size[1], filters, input.get_shape()[-1]],
+			initializer=tf.truncated_normal_initializer(stddev = 0.02, seed = self.seed))
 
 		conv = tf.nn.conv2d_transpose(input, w, output_shape=tf.convert_to_tensor([input.get_shape()[0].value, input.get_shape()[1].value*stride, input.get_shape()[2].value*stride, filters]), strides=[1, stride, stride, 1], padding='SAME', name=name)
 
-		biases = tf.get_variable('biases' + name, [filters], initializer=tf.constant_initializer(0.0))
+		biases = tf.get_variable(name + 'biases', [filters], initializer=tf.constant_initializer(0.0))
 
 		conv = tf.reshape(tf.nn.bias_add(conv, biases), conv.get_shape())
 

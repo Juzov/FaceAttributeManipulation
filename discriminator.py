@@ -18,10 +18,8 @@ class Discriminator:
 			)
 
 			bn1 = tf.nn.leaky_relu(
-				tf.contrib.layers.batch_norm(
+				tf.contrib.layers.instance_norm(
 					conv1,
-					decay=0.9,
-					updates_collections=None,
 					epsilon=1e-5,
 					scale=True,
 					scope= 'd_bn_1'
@@ -36,10 +34,8 @@ class Discriminator:
 			)
 
 			bn2 = tf.nn.leaky_relu(
-				tf.contrib.layers.batch_norm(
+				tf.contrib.layers.instance_norm(
 					conv2,
-					decay=0.9,
-					updates_collections=None,
 					epsilon=1e-5,
 					scale=True,
 					scope= 'd_bn_2'
@@ -54,10 +50,8 @@ class Discriminator:
 			)
 
 			bn3 = tf.nn.leaky_relu(
-				tf.contrib.layers.batch_norm(
+				tf.contrib.layers.instance_norm(
 					self.phi,
-					decay=0.9,
-					updates_collections=None,
 					epsilon=1e-5,
 					scale=True,
 					scope= 'd_bn_3'
@@ -72,10 +66,8 @@ class Discriminator:
 			)
 
 			bn4 = tf.nn.leaky_relu(
-				tf.contrib.layers.batch_norm(
+				tf.contrib.layers.instance_norm(
 					conv4,
-					decay=0.9,
-					updates_collections=None,
 					epsilon=1e-5,
 					scale=True,
 					scope= 'd_bn_4'
@@ -90,10 +82,8 @@ class Discriminator:
 			)
 
 			bn5 = tf.nn.leaky_relu(
-				tf.contrib.layers.batch_norm(
+				tf.contrib.layers.instance_norm(
 					conv5,
-					decay=0.9,
-					updates_collections=None,
 					epsilon=1e-5,
 					scale=True,
 					scope= 'd_bn_5'
@@ -111,24 +101,24 @@ class Discriminator:
 			batch_size = data.get_shape()[0].value
 			flatten7 = tf.reshape(conv6, [batch_size, -1])
 
-			dense_w = tf.get_variable("w_d_dense_8", [flatten7.get_shape()[1].value, 3], tf.float32,
-				tf.keras.initializers.he_normal(seed=self.seed))
+			dense_w = tf.get_variable("d_dense_8_w", [flatten7.get_shape()[1].value, 3], tf.float32,
+				tf.truncated_normal_initializer(stddev = 0.02, seed = self.seed))
 
-			dence_bias = tf.get_variable("bias_d_dense_8", [3],
+			dense_bias = tf.get_variable("d_dense_8_bias", [3],
 				initializer=tf.constant_initializer(0))
 
 
-			self.output = tf.nn.softmax(tf.matmul(flatten7, dense_w) + dence_bias)
+			self.output = tf.nn.softmax(tf.matmul(flatten7, dense_w) + dense_bias)
 
 			return self.phi, self.logits, self.output
 
 	def conv2d(self, variable_scope, input, filters, name, kernel_size = [4,4], stride = 2):
-		w = tf.get_variable('w' + name, [kernel_size[0], kernel_size[1], input.get_shape()[-1], filters],
-			initializer=tf.keras.initializers.he_normal(seed=self.seed))
+		w = tf.get_variable(name + 'w', [kernel_size[0], kernel_size[1], input.get_shape()[-1], filters],
+			initializer=tf.truncated_normal_initializer(stddev = 0.02, seed = self.seed))
 
 		conv = tf.nn.conv2d(input, w, strides=[1, stride, stride, 1], padding='SAME', name=name)
 
-		biases = tf.get_variable('biases' + name, [filters], initializer=tf.constant_initializer(0.0))
+		biases = tf.get_variable(name + 'biases', [filters], initializer=tf.constant_initializer(0.0))
 
 		conv = tf.reshape(tf.nn.bias_add(conv, biases), conv.get_shape())
 

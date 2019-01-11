@@ -67,8 +67,8 @@ class FaceGAN():
 		r1 = g_1(seed, self.X_pos, "g_1")
 
 		# The altered image
-		x_theta_0 = tf.add(r0, self.X_neg)
-		x_theta_1 = tf.add(r1, self.X_pos)
+		x_theta_0 = r0 + self.X_neg
+		x_theta_1 = r1 + self.X_pos
 
 		# Discriminator output
 		phi_fake_0, _, p_fake_0 = d(seed, x_theta_0)
@@ -85,8 +85,8 @@ class FaceGAN():
 		dual_r_0 = g_1(seed, x_theta_0, "g_1", True)
 		dual_r_1 = g_0(seed, x_theta_1, "g_0", True)
 
-		dual_theta_0 = tf.add(dual_r_0, x_theta_0)
-		dual_theta_1 = tf.add(dual_r_1, x_theta_1)
+		dual_theta_0 = dual_r_0 + x_theta_0
+		dual_theta_1 = dual_r_1 + x_theta_1
 
 		_, _, p_dual_0 = d(seed, dual_theta_0, True)
 		_, _, p_dual_1 = d(seed, dual_theta_1, True)
@@ -116,15 +116,15 @@ class FaceGAN():
 		loss_cls_real_1 = tf.reduce_mean(-tf.log(tf.reduce_sum(pt_real_1, axis = 1) + small_value))
 
 		# Loss_per
-		loss_per_0 = tf.reduce_mean(tf.reduce_sum(tf.abs(tf.subtract(phi_real_0, phi_fake_0)), axis=[1, 2, 3]))
-		loss_per_1 = tf.reduce_mean(tf.reduce_sum(tf.abs(tf.subtract(phi_real_1, phi_fake_1)), axis=[1, 2, 3]))
+		loss_per_0 = tf.reduce_mean(tf.reduce_sum(tf.abs(phi_real_0 - phi_fake_0), axis=[1, 2, 3]))
+		loss_per_1 = tf.reduce_mean(tf.reduce_sum(tf.abs(phi_real_1 - phi_fake_1), axis=[1, 2, 3]))
 
 		# Loss_gan
 		loss_gan_0 = tf.reduce_mean(-tf.log(tf.reduce_sum(p_fake_0 * Y_pos_oh, axis = 1) + small_value))
-		loss_gan_1 = tf.reduce_mean(1 - tf.log(tf.reduce_sum(p_fake_1 * Y_neg_oh, axis = 1) + small_value))
+		loss_gan_1 = tf.reduce_mean(-tf.log(tf.reduce_sum(p_fake_1 * Y_neg_oh, axis = 1) + small_value))
 
 		# Loss_dual
-		loss_dual_0 = tf.reduce_mean(1 - tf.log(tf.reduce_sum(pt_dual_0, axis = 1) + small_value))
+		loss_dual_0 = tf.reduce_mean(-tf.log(tf.reduce_sum(pt_dual_0, axis = 1) + small_value))
 		loss_dual_1 = tf.reduce_mean(-tf.log(tf.reduce_sum(pt_dual_1, axis = 1) + small_value))
 
 		self.all_losses = {
@@ -174,7 +174,7 @@ class FaceGAN():
 		seed = 9
 		batch_size = 5
 		start_images = 0
-		number_of_images = 1000
+		number_of_images = 1400
 		train_ratio= 0.7
 
 		self.reset_graph(seed)
@@ -209,7 +209,7 @@ class FaceGAN():
 
 			data_neg, data_pos = get_data(start_images, number_of_images, train_ratio, seed)
 
-			n_epochs = 10000
+			n_epochs = 35
 
 			for epoch in range(n_epochs):
 				# TODO - this fails
@@ -273,6 +273,7 @@ class FaceGAN():
 							im.save(f'images/{key}-{str(j)}.png')
 							im.close()
 
+				if (epoch % 2 == 0):
 					self.save(start_images + ((i*batch_size)+batch_size))
 
 fg = FaceGAN()
