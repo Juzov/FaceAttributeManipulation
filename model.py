@@ -18,7 +18,6 @@ class FaceGAN():
 		self.checkpoint_load_dir = 'checkpoints'
 
 	def reset_graph(self, seed=42):
-		tf.reset_default_graph()
 		tf.set_random_seed(seed)
 		np.random.seed(seed)
 

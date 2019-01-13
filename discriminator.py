@@ -2,16 +2,16 @@ import numpy as np
 import tensorflow as tf
 
 class Discriminator:
-	def __call__(self, seed, data, reuse = False):
+	def __init__(self, seed):
+		self.seed = seed
+
+	def __call__(self, data, reuse = False):
 		'''
 		This the architechture of the generator
 		'''
 		with tf.variable_scope("d_", reuse=reuse):
-			self.seed = seed
-
 			# Input size (128, 128, 3)
 			conv1 = self.conv2d(
-				variable_scope = 'd_',
 				input = data,
 				filters = 64,
 				name = 'd_conv1'
@@ -27,7 +27,6 @@ class Discriminator:
 			)
 
 			conv2 = self.conv2d(
-				variable_scope = 'd_',
 				input = bn1,
 				filters = 128,
 				name = 'd_conv2'
@@ -43,7 +42,6 @@ class Discriminator:
 			)
 
 			self.phi = self.conv2d(
-				variable_scope = 'd_',
 				input = bn2,
 				filters = 256,
 				name = 'd_conv3'
@@ -59,7 +57,6 @@ class Discriminator:
 			)
 
 			conv4 = self.conv2d(
-				variable_scope = 'd_',
 				input = bn3,
 				filters = 512,
 				name = 'd_conv4'
@@ -75,7 +72,6 @@ class Discriminator:
 			)
 
 			conv5 = self.conv2d(
-				variable_scope = 'd_',
 				input = conv4,
 				filters = 1024,
 				name = 'd_conv5'
@@ -90,8 +86,7 @@ class Discriminator:
 				)
 			)
 
-			self.logits = conv6 = self.conv2d(
-				variable_scope = 'd_',
+			conv6 = self.conv2d(
 				input = bn5,
 				filters = 1,
 				name = 'd_conv6',
@@ -110,9 +105,9 @@ class Discriminator:
 
 			self.output = tf.nn.softmax(tf.matmul(flatten7, dense_w) + dense_bias)
 
-			return self.phi, self.logits, self.output
+			return self.phi, self.output
 
-	def conv2d(self, variable_scope, input, filters, name, kernel_size = [4,4], stride = 2):
+	def conv2d(self, input, filters, name, kernel_size = [4,4], stride = 2):
 		w = tf.get_variable(name + 'w', [kernel_size[0], kernel_size[1], input.get_shape()[-1], filters],
 			initializer=tf.truncated_normal_initializer(stddev = 0.02, seed = self.seed))
 

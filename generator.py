@@ -3,23 +3,24 @@ import tensorflow as tf
 
 class Generator:
 
-	def __call__(self, seed, data, gen_name, reuse = False):
+	def __init__(self, seed, gen_name):
+		self.seed = seed
+		self.gen_name = gen_name
+
+	def __call__(self, data, reuse = False):
 		'''
 		This the architechture of the generator
 		'''
 
-		with tf.variable_scope(gen_name, reuse=reuse):
-
-			self.seed = seed
+		with tf.variable_scope(self.gen_name, reuse=reuse):
 
 			# Input size (128, 128, 3)
 			conv1 = self.conv2d(
-				variable_scope = gen_name,
 				input = data,
 				filters = 64,
 				kernel_size = [5,5],
 				stride = 1,
-				name = gen_name + '_conv_1'
+				name = self.gen_name + '_conv_1'
 			)
 
 			bn1 = tf.nn.leaky_relu(
@@ -27,17 +28,16 @@ class Generator:
 					conv1,
 					epsilon=1e-5,
 					scale=True,
-					scope= gen_name + '_bn_1'
+					scope= self.gen_name + '_bn_1'
 				)
 			)
 
 			conv2 = self.conv2d(
-				variable_scope = gen_name,
 				input = bn1,
 				filters = 128,
 				kernel_size = [4,4],
 				stride = 2,
-				name = gen_name + '_conv_2'
+				name = self.gen_name + '_conv_2'
 			)
 
 			bn2 = tf.nn.leaky_relu(
@@ -45,17 +45,16 @@ class Generator:
 					conv2,
 					epsilon=1e-5,
 					scale=True,
-					scope= gen_name + '_bn_2'
+					scope= self.gen_name + '_bn_2'
 				)
 			)
 
 			conv3 = self.conv2d(
-				variable_scope = gen_name,
 				input = bn2,
 				filters = 256,
 				kernel_size = [4,4],
 				stride = 2,
-				name = gen_name + '_conv_3'
+				name = self.gen_name + '_conv_3'
 			)
 
 			bn3 = tf.nn.leaky_relu(
@@ -63,17 +62,16 @@ class Generator:
 					conv3,
 					epsilon=1e-5,
 					scale=True,
-					scope= gen_name + '_bn_3'
+					scope= self.gen_name + '_bn_3'
 				)
 			)
 
 			deconv4 = self.deconv2d(
-				variable_scope = gen_name,
 				input = bn3,
 				filters = 128,
 				kernel_size = [3,3],
 				stride = 2,
-				name = gen_name + '_deconv_4'
+				name = self.gen_name + '_deconv_4'
 			)
 
 			bn4 = tf.nn.leaky_relu(
@@ -81,17 +79,16 @@ class Generator:
 					deconv4,
 					epsilon=1e-5,
 					scale=True,
-					scope= gen_name + '_bn_4'
+					scope= self.gen_name + '_bn_4'
 				)
 			)
 
 			deconv5 = self.deconv2d(
-				variable_scope = gen_name,
 				input = bn4,
 				filters = 64,
 				kernel_size = [3,3],
 				stride = 2,
-				name = gen_name + '_deconv_5'
+				name = self.gen_name + '_deconv_5'
 			)
 
 			bn5 = tf.nn.leaky_relu(
@@ -99,23 +96,22 @@ class Generator:
 					deconv5,
 					epsilon=1e-5,
 					scale=True,
-					scope= gen_name + '_bn_5'
+					scope= self.gen_name + '_bn_5'
 				)
 			)
 
 			# Output size (128, 128, 3)
 			self.output = self.conv2d(
-				variable_scope = gen_name,
 				input = bn5,
 				filters = 3,
 				kernel_size=[4,4],
 				stride = 1,
-				name = gen_name + '_conv_6'
+				name = self.gen_name + '_conv_6'
 			)
 
 			return self.output
 
-	def conv2d(self, variable_scope, input, filters, kernel_size, stride, name):
+	def conv2d(self, input, filters, kernel_size, stride, name):
 
 		w = tf.get_variable(name + 'w', [kernel_size[0], kernel_size[1], input.get_shape()[-1], filters],
 			initializer=tf.truncated_normal_initializer(stddev = 0.02, seed = self.seed))
@@ -128,7 +124,7 @@ class Generator:
 
 		return conv
 
-	def deconv2d(self, variable_scope, input, filters, kernel_size, stride, name):
+	def deconv2d(self, input, filters, kernel_size, stride, name):
 		w = tf.get_variable(name + 'w', [kernel_size[0], kernel_size[1], filters, input.get_shape()[-1]],
 			initializer=tf.truncated_normal_initializer(stddev = 0.02, seed = self.seed))
 
