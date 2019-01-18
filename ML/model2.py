@@ -107,10 +107,10 @@ class FaceGAN():
 
 		# gan loss
 		self.l_gan0 = tf.reduce_mean(-tf.log(tf.reduce_sum(p_fake_0 * one_hot_pos, axis=1) + small_value))
-		self.l_gan1 = tf.reduce_mean(-tf.log(tf.reduce_sum(p_fake_1 * one_hot_fake, axis=1) + small_value))
+		self.l_gan1 = tf.reduce_mean(-tf.log(tf.reduce_sum(p_fake_1 * one_hot_neg, axis=1) + small_value))
 
 		#dual loss
-		self.l_dual0 = tf.reduce_mean(-tf.log(tf.reduce_sum(dual_x0_theta * one_hot_fake, axis=1)+ small_value))
+		self.l_dual0 = tf.reduce_mean(-tf.log(tf.reduce_sum(dual_x0_theta * one_hot_neg, axis=1)+ small_value))
 		self.l_dual1 = tf.reduce_mean(-tf.log(tf.reduce_sum(dual_x1_theta * one_hot_pos, axis=1) + small_value))
 
 		alpha = 5e-5
@@ -124,6 +124,26 @@ class FaceGAN():
 
 		self.sess = tf.Session()
 		self.sess.run(tf.global_variables_initializer())
+
+	def predict(self):
+		seed = 9
+		self.pred_0 = tf.placeholder(tf.float32, [1, 128, 128, 3], name="pred_0")
+		self.pred_1 = tf.placeholder(tf.float32, [1, 128, 128, 3], name="pred_1")
+
+		# Get instances to the network-classes
+		g_0 = Generator(seed, 'g_0')
+		g_1 = Generator(seed, 'g_1')
+
+		# Residual images/outputs from generators
+		r0 = g_0(self.pred_0, True)
+		r1 = g_1(self.pred_1, True)
+
+		# The altered image
+		x_theta_0 = r0 + self.pred_0
+		x_theta_1 = r1 + self.pred_1
+
+		self.myOutput0 = tf.identity(x_theta_0, name='output0')
+		self.myOutput1 = tf.identity(x_theta_1, name='output1')
 
 	def __call__(self):
 		seed = 9
@@ -152,10 +172,25 @@ class FaceGAN():
 		else:
 			print(" [!] Load failed...")
 
+		self.predict()
+
+		tf.saved_model.simple_save(
+			self.sess,
+			'savedModel',
+			inputs={
+				'pred_0':self.X_neg,
+				'pred_1':self.X_pos
+			},
+			outputs={
+				"output0": self.myOutput0,
+				"output1": self.myOutput1
+			}
+		)
+
 		# Load the data (both train and test)
 		data_neg, data_pos = get_data(start_images, number_of_images, train_ratio, seed)
 
-		n_epochs = 35
+		n_epochs = 51
 
 		for epoch in range(n_epochs):
 			# TODO - this fails
@@ -215,7 +250,7 @@ class FaceGAN():
 				for key, img_collection in all_images.items():
 					for j,img in enumerate(img_collection):
 						im = Image.fromarray(scale_image(img).astype('uint8'))
-						im.save(f'images/{key}-{str(j)}.png')
+						im.save(f'images/{key}-{str(j)}-epoch{str(epoch)}.png')
 						im.close()
 
 fg = FaceGAN()
