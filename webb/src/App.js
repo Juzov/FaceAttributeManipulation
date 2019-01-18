@@ -148,8 +148,8 @@ class App extends Component {
 
 	render() {
 		const videoConstraints = {
-			width: 720,
-			height: 720,
+			width: 350,
+			height: 350,
 			facingMode: "user"
 		};
 		return (
