@@ -8,30 +8,30 @@ ML/glasses
 ML/graphs
 ML/testar.py
 ML/testartf.py
-face-web/node_modules
+webb/node_modules
 ML/webcheckpoint
 ML/savedModel
 ML/savedModel/*
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-face-web/node_modules
-face-web/.pnp
-face-web/.pnp.js
+webb/node_modules
+webb/.pnp
+webb/.pnp.js
 
 # testing
-face-web/coverage
+webb/coverage
 
 # production
-face-web/build
+webb/build
 
 # misc
 .DS_Store
-face-web/.env.local
-face-web/.env.development.local
-face-web/.env.test.local
-face-web/.env.production.local
+webb/.env.local
+webb/.env.development.local
+webb/.env.test.local
+webb/.env.production.local
 
-face-web/npm-debug.log*
-face-web/yarn-debug.log*
-face-web/yarn-error.log*
+webb/npm-debug.log*
+webb/yarn-debug.log*
+webb/yarn-error.log*
