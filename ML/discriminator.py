@@ -103,7 +103,7 @@ class Discriminator:
 				initializer=tf.constant_initializer(0))
 
 
-			self.output = tf.nn.softmax(tf.matmul(flatten7, dense_w) + dense_bias)
+			self.output = tf.matmul(flatten7, dense_w) + dense_bias
 
 			return self.phi, self.output
 

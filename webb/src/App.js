@@ -12,15 +12,16 @@ class App extends Component {
 			buttonText: ['Add glasses!', 'Remove glasses!'],
 			orgImg: '',
 			manImg: '',
-			type: 0
+			type: 0,
+			epoch: 100
 		}
 
 		this.loadModel();
 	}
 
 	loadModel = async () => {
-		const MODEL_URL = '/webcheckpoint/tensorflowjs_model.pb';
-		const WEIGHTS_URL = '/webcheckpoint/weights_manifest.json';
+		const MODEL_URL = '/webcheckpoint'+ this.state.epoch +'/tensorflowjs_model.pb';
+		const WEIGHTS_URL = '/webcheckpoint'+ this.state.epoch +'/weights_manifest.json';
 
 		const fetchedModel = await loadFrozenModel(MODEL_URL, WEIGHTS_URL);
 
@@ -129,6 +130,16 @@ class App extends Component {
 		return canvas.toDataURL('image/jpeg', 1);
 	}
 
+	updateEpochs = (e) => {
+		if (typeof e.target !== 'undefined') {
+			this.setState({
+				epoch: e.target.value
+			}, () => {
+				this.loadModel();
+			});
+		}
+	}
+
 	renderResults = () => {
 		if (this.state.orgImg !== '') {
 			return (
@@ -158,6 +169,17 @@ class App extends Component {
 					<h1>GLASSES ADDER/REMOVER</h1>
 				</header>
 				<div className="mt-5">
+					<p>
+						How many epochs:
+						<select value={this.state.epoch} onChange={this.updateEpochs}>
+							<option value="50">50</option>
+							<option value="60">60</option>
+							<option value="70">70</option>
+							<option value="80">80</option>
+							<option value="90">90</option>
+							<option value="100">100</option>
+						</select>
+					</p>
 					<button className={(!this.state.type ? 'bg-blue text-white' : 'bg-transparent border border-blue text-blue') +  " hover:text-white hover:bg-blue-dark font-bold py-2 px-4 rounded mr-2"} onClick={this.changeType}>Add glasses</button>
 					<button className={(this.state.type ? 'bg-blue text-white' : 'bg-transparent border border-blue text-blue') +  " hover:text-white hover:bg-blue-dark font-bold py-2 px-4 rounded mb-5"} onClick={this.changeType}>Remove glasses</button>
 					<br></br>
