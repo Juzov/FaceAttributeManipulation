@@ -1,7 +1,37 @@
-/img_align_celeba/*
-__pycache__/
-/checkpoints/*
-.floydexpt
-floyd.yml
-hehe.py
-glasses
+ML/img_align_celeba/*
+ML/__pycache__/
+ML/checkpoints/*
+ML/.floydexpt
+ML/floyd.yml
+ML/hehe.py
+ML/glasses
+ML/graphs
+ML/testar.py
+ML/testartf.py
+webb/node_modules
+ML/webcheckpoint
+ML/savedModel
+ML/savedModel/*
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+webb/node_modules
+webb/.pnp
+webb/.pnp.js
+
+# testing
+webb/coverage
+
+# production
+webb/build
+
+# misc
+.DS_Store
+webb/.env.local
+webb/.env.development.local
+webb/.env.test.local
+webb/.env.production.local
+
+webb/npm-debug.log*
+webb/yarn-debug.log*
+webb/yarn-error.log*
